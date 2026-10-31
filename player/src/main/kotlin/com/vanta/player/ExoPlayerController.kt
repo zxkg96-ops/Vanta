@@ -155,7 +155,14 @@ class ExoPlayerController(
         ensureEffects()
         val eq = equalizer
         if (eq == null) {
-            _state.update { it.copy(autoHeadphones = autoHeadphones, outputName = outputName) }
+            _state.update { state ->
+                state.copy(
+                    equalizer = state.equalizer.copy(
+                        autoHeadphones = autoHeadphones,
+                        outputName = outputName
+                    )
+                )
+            }
             return
         }
         try {
