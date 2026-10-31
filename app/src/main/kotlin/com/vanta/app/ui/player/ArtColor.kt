@@ -18,16 +18,18 @@ import coil.request.SuccessResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** Тёмный оттенок, взятый из обложки (плавно меняется). Без обложки возвращает fallback. */
+/** dark: тёмный оттенок для фона, accent: яркий цвет для свечения краёв. */
+data class ArtColors(val dark: Color, val accent: Color)
+
 @Composable
-fun rememberArtColor(artUri: String?, fallback: Color): Color {
+fun rememberArtColors(artUri: String?, fallbackDark: Color, fallbackAccent: Color): ArtColors {
     val context = LocalContext.current
-    var color by remember(artUri) { mutableStateOf<Color?>(null) }
+    var picked by remember(artUri) { mutableStateOf<Pair<Color, Color>?>(null) }
 
     LaunchedEffect(artUri) {
-        color = null
+        picked = null
         if (artUri == null) return@LaunchedEffect
-        val rgb = withContext(Dispatchers.IO) {
+        val rgb: Pair<Int, Int>? = withContext(Dispatchers.IO) {
             try {
                 val request = ImageRequest.Builder(context)
                     .data(artUri)
@@ -38,15 +40,20 @@ fun rememberArtColor(artUri: String?, fallback: Color): Color {
                 val bitmap = (result as? SuccessResult)?.drawable?.toBitmap()
                 if (bitmap == null) null else {
                     val p = Palette.from(bitmap).generate()
-                    (p.darkMutedSwatch ?: p.mutedSwatch ?: p.dominantSwatch)?.rgb
+                    val dark = (p.darkMutedSwatch ?: p.mutedSwatch ?: p.dominantSwatch)?.rgb
+                    val accent = (p.vibrantSwatch ?: p.lightVibrantSwatch ?: p.dominantSwatch)?.rgb
+                    val d = dark ?: accent
+                    val a = accent ?: dark
+                    if (d == null || a == null) null else Pair(d, a)
                 }
             } catch (e: Exception) {
                 null
             }
         }
-        if (rgb != null) color = Color(rgb)
+        if (rgb != null) picked = Pair(Color(rgb.first), Color(rgb.second))
     }
 
-    val animated by animateColorAsState(color ?: fallback, tween(600), label = "artColor")
-    return animated
+    val dark by animateColorAsState(picked?.first ?: fallbackDark, tween(600), label = "artDark")
+    val accent by animateColorAsState(picked?.second ?: fallbackAccent, tween(600), label = "artAccent")
+    return ArtColors(dark, accent)
 }

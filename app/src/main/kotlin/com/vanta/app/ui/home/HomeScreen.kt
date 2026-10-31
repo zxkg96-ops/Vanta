@@ -10,7 +10,14 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
+import com.vanta.app.R
+import com.vanta.app.ui.components.GlassTabBar
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -118,13 +125,17 @@ fun HomeScreen(
                             modifier = Modifier.fillMaxWidth().focusRequester(focusRequester)
                         )
                     } else {
-                        Column {
-                            Text("VANTA", style = MaterialTheme.typography.titleLarge)
-                            Text(
-                                "YOUR MUSIC, REFINED",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Image(
+                                painter = painterResource(R.drawable.ic_vanta_logo),
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(10.dp))
                             )
+                            Spacer(Modifier.width(10.dp))
+                            Text("VANTA", style = MaterialTheme.typography.titleLarge)
                         }
                     }
                 },
@@ -172,16 +183,12 @@ fun HomeScreen(
         }
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            val titles = listOf("Треки", "Альбомы", "Артисты", "Плейлисты")
-            ScrollableTabRow(
-                selectedTabIndex = tab,
-                containerColor = Color.Transparent,
-                edgePadding = 8.dp
-            ) {
-                titles.forEachIndexed { i, title ->
-                    Tab(selected = tab == i, onClick = { tab = i }, text = { Text(title, maxLines = 1) })
-                }
-            }
+            GlassTabBar(
+                titles = listOf("Треки", "Альбомы", "Артисты", "Плейлисты"),
+                selected = tab,
+                onSelect = { tab = it },
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            )
 
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 when (tab) {

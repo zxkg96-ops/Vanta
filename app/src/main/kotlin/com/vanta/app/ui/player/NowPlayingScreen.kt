@@ -1,6 +1,14 @@
 package com.vanta.app.ui.player
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.lerp as lerpColor
+import com.vanta.app.ui.components.glass
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -67,7 +75,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -98,7 +105,33 @@ fun NowPlayingScreen(
     val track = state.queue.getOrNull(state.currentIndex)
     var showQueue by remember { mutableStateOf(false) }
     var showTimer by remember { mutableStateOf(false) }
-    val artColor = rememberArtColor(track?.artUri, MaterialTheme.colorScheme.surface)
+    val artColors = rememberArtColors(
+        track?.artUri,
+        MaterialTheme.colorScheme.surface,
+        MaterialTheme.colorScheme.primary
+    )
+    val artColor = artColors.dark
+    val accent = artColors.accent
+
+    // Пульсация краёв обложки (имитация ритма ~100 BPM)
+    val glowTransition = rememberInfiniteTransition(label = "glow")
+    val beat by glowTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(300, easing = FastOutSlowInEasing), AnimRepeatMode.Reverse),
+        label = "beat"
+    )
+    val spin by glowTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(6000, easing = LinearEasing), AnimRepeatMode.Restart),
+        label = "spin"
+    )
+    val glowLevel by animateFloatAsState(
+        targetValue = if (state.isPlaying) 1f else 0f,
+        animationSpec = tween(500),
+        label = "glowLevel"
+    )
 
     val artScale by animateFloatAsState(
         targetValue = if (state.isPlaying) 1f else 0.9f,
@@ -177,8 +210,11 @@ fun NowPlayingScreen(
                 },
                 contentKey = { it?.id },
                 transitionSpec = {
-                    (fadeIn(tween(320)) + scaleIn(tween(320), initialScale = 0.94f))
-                        .togetherWith(fadeOut(tween(200)))
+                    ContentTransform(
+                        targetContentEnter = fadeIn(tween(320)) + scaleIn(tween(320), initialScale = 0.94f),
+                        initialContentExit = fadeOut(tween(200)),
+                        sizeTransform = SizeTransform(clip = false)
+                    )
                 },
                 label = "trackChange"
             ) { t ->
@@ -194,6 +230,38 @@ fun NowPlayingScreen(
                             .graphicsLayer {
                                 scaleX = artScale
                                 scaleY = artScale
+                            }
+                            .drawBehind {
+                                val lvl = glowLevel
+                                if (lvl > 0.01f) {
+                                    val b = beat
+                                    val corner = 20.dp.toPx()
+                                    val gap = (3.dp + 2.dp * b).toPx()
+                                    for (i in 1..6) {
+                                        val grow = gap * i
+                                        val a = (0.05f + 0.12f * b) * (7 - i) / 6f * lvl
+                                        drawRoundRect(
+                                            color = accent.copy(alpha = a),
+                                            topLeft = Offset(-grow, -grow),
+                                            size = Size(size.width + 2 * grow, size.height + 2 * grow),
+                                            cornerRadius = CornerRadius(corner + grow)
+                                        )
+                                    }
+                                    // Переливающаяся кромка: яркое пятно бежит по кругу
+                                    val n = 12
+                                    val stops = Array(n + 1) { i ->
+                                        val w = (sin(2f * PI.toFloat() * (i / n.toFloat() - spin)) + 1f) / 2f
+                                        (i / n.toFloat()) to lerpColor(accent.copy(alpha = 0.2f), Color.White, w * w)
+                                    }
+                                    drawRoundRect(
+                                        brush = Brush.sweepGradient(*stops),
+                                        topLeft = Offset.Zero,
+                                        size = size,
+                                        cornerRadius = CornerRadius(corner),
+                                        alpha = lvl,
+                                        style = Stroke(width = (1.5.dp + 1.5.dp * b).toPx())
+                                    )
+                                }
                             }
                             .clip(RoundedCornerShape(20.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant),
@@ -281,7 +349,10 @@ fun NowPlayingScreen(
 
             // Controls
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .glass(RoundedCornerShape(50))
+                    .padding(horizontal = 8.dp, vertical = 10.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -293,7 +364,7 @@ fun NowPlayingScreen(
                     )
                 }
                 IconButton(onClick = { player.prev() }, modifier = Modifier.size(56.dp)) {
-                    Icon(Icons.Default.SkipPrevious, contentDescription = "Previous", modifier = Modifier.size(36.dp))
+                    Icon(Icons.Default.SkipPrevious, contentDescription = "Previous", tint = Color.White, modifier = Modifier.size(36.dp))
                 }
                 IconButton(
                     onClick = { player.toggle() },
@@ -318,7 +389,7 @@ fun NowPlayingScreen(
                     }
                 }
                 IconButton(onClick = { player.next() }, modifier = Modifier.size(56.dp)) {
-                    Icon(Icons.Default.SkipNext, contentDescription = "Next", modifier = Modifier.size(36.dp))
+                    Icon(Icons.Default.SkipNext, contentDescription = "Next", tint = Color.White, modifier = Modifier.size(36.dp))
                 }
                 IconButton(onClick = {
                     val next = when (state.repeat) {
@@ -477,12 +548,12 @@ private fun EqualizerBars(
     Canvas(modifier) {
         val barW = size.width / (EQ_BARS * 1.7f)
         val gap = (size.width - barW * EQ_BARS) / (EQ_BARS - 1)
-        val minH = 3.dp.toPx()
+        val minH = 4.dp.toPx()
         bars.forEachIndexed { i, bar ->
             val s1 = sin(twoPi * bar.k1 * phase + bar.o1)
             val s2 = sin(twoPi * bar.k2 * phase + bar.o2)
             val v = ((0.5f + 0.25f * s1 + 0.25f * s2) * bar.envelope).coerceIn(0f, 1f)
-            val h = minH + (size.height - minH) * v * level
+            val h = minH + (size.height - minH) * v * (0.18f + 0.82f * level)
             val x = i * (barW + gap)
             val played = (i + 0.5f) / EQ_BARS <= progress
             drawRoundRect(
