@@ -1,6 +1,8 @@
 package com.vanta.app.ui.components
 
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -10,6 +12,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -26,9 +29,11 @@ fun TrackRow(
     modifier: Modifier = Modifier,
     trailing: (@Composable () -> Unit)? = null
 ) {
+    val source = remember { MutableInteractionSource() }
     Row(
-        modifier = modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick).padding(horizontal = 4.dp, vertical = 9.dp),
+        modifier = modifier.fillMaxWidth().pressScale(source).clip(RoundedCornerShape(14.dp))
+            .clickable(interactionSource = source, indication = LocalIndication.current, onClick = onClick)
+            .padding(horizontal = 4.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Surface(

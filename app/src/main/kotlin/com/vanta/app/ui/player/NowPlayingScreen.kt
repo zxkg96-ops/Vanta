@@ -1,5 +1,16 @@
 package com.vanta.app.ui.player
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -43,6 +54,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -62,6 +74,16 @@ fun NowPlayingScreen(
 ) {
     val state by player.state.collectAsStateWithLifecycle()
     val track = state.queue.getOrNull(state.currentIndex)
+
+    val artScale by animateFloatAsState(
+        targetValue = if (state.isPlaying) 1f else 0.9f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+        label = "artScale"
+    )
+    val activeColor = MaterialTheme.colorScheme.primary
+    val idleColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val shuffleTint by animateColorAsState(if (state.shuffle) activeColor else idleColor, tween(250), label = "shuffleTint")
+    val repeatTint by animateColorAsState(if (state.repeat != RepeatMode.OFF) activeColor else idleColor, tween(250), label = "repeatTint")
 
     Column(
         modifier = Modifier
@@ -101,49 +123,68 @@ fun NowPlayingScreen(
         ) {
             Spacer(Modifier.height(12.dp))
 
-            // Artwork
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(0.88f)
-                    .aspectRatio(1f)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                contentAlignment = Alignment.Center
-            ) {
-                if (track?.artUri != null) {
-                    AsyncImage(
-                        model = track.artUri,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
+            AnimatedContent(
+                targetState = track,
+                contentKey = { it?.id },
+                transitionSpec = {
+                    (fadeIn(tween(320)) + scaleIn(tween(320), initialScale = 0.94f))
+                        .togetherWith(fadeOut(tween(200)))
+                },
+                label = "trackChange"
+            ) { t ->
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // Artwork
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.88f)
+                            .aspectRatio(1f)
+                            .graphicsLayer {
+                                scaleX = artScale
+                                scaleY = artScale
+                            }
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (t?.artUri != null) {
+                            AsyncImage(
+                                model = t.artUri,
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            Icon(
+                                Icons.Default.MusicNote,
+                                contentDescription = null,
+                                modifier = Modifier.size(96.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(36.dp))
+
+                    Text(
+                        text = t?.title ?: "Nothing playing",
+                        style = MaterialTheme.typography.headlineSmall,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Center
                     )
-                } else {
-                    Icon(
-                        Icons.Default.MusicNote,
-                        contentDescription = null,
-                        modifier = Modifier.size(96.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = t?.artist ?: "",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
-
-            Spacer(Modifier.height(36.dp))
-
-            Text(
-                text = track?.title ?: "Nothing playing",
-                style = MaterialTheme.typography.headlineSmall,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center
-            )
-            Spacer(Modifier.height(6.dp))
-            Text(
-                text = track?.artist ?: "",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
 
             Spacer(Modifier.height(28.dp))
 
@@ -193,8 +234,7 @@ fun NowPlayingScreen(
                     Icon(
                         Icons.Default.Shuffle,
                         contentDescription = "Shuffle",
-                        tint = if (state.shuffle) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.onSurfaceVariant
+                        tint = shuffleTint
                     )
                 }
                 IconButton(onClick = { player.prev() }, modifier = Modifier.size(56.dp)) {
@@ -206,12 +246,21 @@ fun NowPlayingScreen(
                         .size(72.dp)
                         .background(MaterialTheme.colorScheme.primary, CircleShape)
                 ) {
-                    Icon(
-                        if (state.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = "Play/Pause",
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(40.dp)
-                    )
+                    AnimatedContent(
+                        targetState = state.isPlaying,
+                        transitionSpec = {
+                            (fadeIn(tween(180)) + scaleIn(tween(180), initialScale = 0.5f))
+                                .togetherWith(fadeOut(tween(120)) + scaleOut(tween(120), targetScale = 0.5f))
+                        },
+                        label = "playPause"
+                    ) { playing ->
+                        Icon(
+                            if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
+                            contentDescription = "Play/Pause",
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(40.dp)
+                        )
+                    }
                 }
                 IconButton(onClick = { player.next() }, modifier = Modifier.size(56.dp)) {
                     Icon(Icons.Default.SkipNext, contentDescription = "Next", modifier = Modifier.size(36.dp))
@@ -227,8 +276,7 @@ fun NowPlayingScreen(
                     Icon(
                         if (state.repeat == RepeatMode.ONE) Icons.Default.RepeatOne else Icons.Default.Repeat,
                         contentDescription = "Repeat",
-                        tint = if (state.repeat != RepeatMode.OFF) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.onSurfaceVariant
+                        tint = repeatTint
                     )
                 }
             }

@@ -1,6 +1,8 @@
 package com.vanta.app.ui.components
 
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -10,6 +12,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -21,7 +24,11 @@ import com.vanta.core.Album
 
 @Composable
 fun AlbumCard(album: Album, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Column(modifier.width(144.dp).clickable(onClick = onClick)) {
+    val source = remember { MutableInteractionSource() }
+    Column(
+        modifier.width(144.dp).pressScale(source, 0.95f)
+            .clickable(interactionSource = source, indication = LocalIndication.current, onClick = onClick)
+    ) {
         Surface(
             modifier = Modifier.fillMaxWidth().aspectRatio(1f),
             shape = RoundedCornerShape(16.dp),

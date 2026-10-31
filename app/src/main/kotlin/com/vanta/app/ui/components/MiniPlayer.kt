@@ -1,6 +1,15 @@
 package com.vanta.app.ui.components
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -13,6 +22,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
@@ -28,8 +38,10 @@ fun MiniPlayer(
     modifier: Modifier = Modifier
 ) {
     val track = state.queue.getOrNull(state.currentIndex) ?: return
+    val source = remember { MutableInteractionSource() }
     Surface(
-        modifier = modifier.fillMaxWidth().clickable(onClick = onOpen),
+        modifier = modifier.fillMaxWidth().pressScale(source)
+            .clickable(interactionSource = source, indication = LocalIndication.current, onClick = onOpen),
         color = MaterialTheme.colorScheme.surfaceVariant,
         shape = RoundedCornerShape(18.dp)
     ) {
@@ -41,7 +53,16 @@ fun MiniPlayer(
                     color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
             }
             IconButton(onClick = onToggle) {
-                Icon(if (state.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow, contentDescription = "Play or pause")
+                AnimatedContent(
+                    targetState = state.isPlaying,
+                    transitionSpec = {
+                        (fadeIn(tween(150)) + scaleIn(tween(150), initialScale = 0.6f))
+                            .togetherWith(fadeOut(tween(100)) + scaleOut(tween(100), targetScale = 0.6f))
+                    },
+                    label = "miniPlayPause"
+                ) { playing ->
+                    Icon(if (playing) Icons.Default.Pause else Icons.Default.PlayArrow, contentDescription = "Play or pause")
+                }
             }
             IconButton(onClick = onNext) {
                 Icon(Icons.Default.SkipNext, contentDescription = "Next")

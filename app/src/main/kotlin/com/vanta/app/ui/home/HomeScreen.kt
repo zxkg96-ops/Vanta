@@ -2,6 +2,11 @@ package com.vanta.app.ui.home
 
 import android.Manifest
 import android.os.Build
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -95,13 +100,19 @@ fun HomeScreen(
         },
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            MiniPlayer(
-                state = state.player,
-                onOpen = onOpenPlayer,
-                onToggle = viewModel::togglePlayback,
-                onNext = viewModel::next,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
-            )
+            AnimatedVisibility(
+                visible = state.player.queue.getOrNull(state.player.currentIndex) != null,
+                enter = slideInVertically { it } + fadeIn(),
+                exit = slideOutVertically { it } + fadeOut()
+            ) {
+                MiniPlayer(
+                    state = state.player,
+                    onOpen = onOpenPlayer,
+                    onToggle = viewModel::togglePlayback,
+                    onNext = viewModel::next,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+                )
+            }
         }
     ) { padding ->
         when {
@@ -177,7 +188,8 @@ fun HomeScreen(
                     items(state.tracks, key = { it.id }) { track ->
                         TrackRow(
                             track = track,
-                            onClick = { viewModel.play(track) }
+                            onClick = { viewModel.play(track) },
+                            modifier = Modifier.animateItem()
                         )
                     }
                 }
