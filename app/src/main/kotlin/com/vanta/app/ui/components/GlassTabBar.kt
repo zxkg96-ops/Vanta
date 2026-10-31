@@ -34,7 +34,7 @@ fun GlassTabBar(
             .fillMaxWidth()
             .clip(plate)
             .background(MaterialTheme.colorScheme.surfaceVariant)
-            .border(1.dp, Color.White.copy(alpha = 0.06f), plate)
+            .glass(plate, strength = 0.45f)
             .padding(4.dp)
     ) {
         val tabW = maxWidth / titles.size

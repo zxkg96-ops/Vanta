@@ -33,6 +33,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -74,8 +75,11 @@ fun MiniPlayer(
                 )
             }
             .pressScale(source)
+            .clip(RoundedCornerShape(18.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .glass(RoundedCornerShape(18.dp), strength = 0.5f)
             .clickable(interactionSource = source, indication = LocalIndication.current, onClick = onOpen),
-        color = MaterialTheme.colorScheme.surfaceVariant,
+        color = Color.Transparent,
         shape = RoundedCornerShape(18.dp)
     ) {
         Row(Modifier.padding(start = 16.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
