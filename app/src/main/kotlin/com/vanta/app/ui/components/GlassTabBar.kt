@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.vanta.app.ui.motion.VantaMotion
 
 /** Островок с вкладками и «стеклянной» таблеткой, которая перетекает к выбранной вкладке. */
 @Composable
@@ -43,8 +44,8 @@ fun GlassTabBar(
         SideEffect { lastSel = selected }
 
         // Передний край бежит быстро, задний отстаёт: таблетка растягивается при переходе
-        val fast = spring<Dp>(dampingRatio = 0.8f, stiffness = 700f)
-        val slow = spring<Dp>(dampingRatio = 0.85f, stiffness = 170f)
+        val fast = spring<Dp>(dampingRatio = 0.88f, stiffness = 520f)
+        val slow = spring<Dp>(dampingRatio = 0.92f, stiffness = 300f)
         val left by animateDpAsState(tabW * selected, if (goingRight) slow else fast, label = "pillLeft")
         val right by animateDpAsState(tabW * (selected + 1), if (goingRight) fast else slow, label = "pillRight")
 

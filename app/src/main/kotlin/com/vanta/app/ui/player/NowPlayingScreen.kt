@@ -89,6 +89,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.vanta.core.PlayerController
+import com.vanta.app.ui.motion.VantaMotion
 import com.vanta.core.RepeatMode
 import java.util.Locale
 import kotlin.math.PI
@@ -116,13 +117,13 @@ fun NowPlayingScreen(
 
     val artScale by animateFloatAsState(
         targetValue = if (state.isPlaying) 1f else 0.9f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+        animationSpec = VantaMotion.GentleSpring,
         label = "artScale"
     )
     val activeColor = MaterialTheme.colorScheme.primary
     val idleColor = MaterialTheme.colorScheme.onSurfaceVariant
-    val shuffleTint by animateColorAsState(if (state.shuffle) activeColor else idleColor, tween(250), label = "shuffleTint")
-    val repeatTint by animateColorAsState(if (state.repeat != RepeatMode.OFF) activeColor else idleColor, tween(250), label = "repeatTint")
+    val shuffleTint by animateColorAsState(if (state.shuffle) activeColor else idleColor, tween(VantaMotion.NORMAL_MS, easing = VantaMotion.StandardEasing), label = "shuffleTint")
+    val repeatTint by animateColorAsState(if (state.repeat != RepeatMode.OFF) activeColor else idleColor, tween(VantaMotion.NORMAL_MS, easing = VantaMotion.StandardEasing), label = "repeatTint")
 
     Column(
         modifier = Modifier
@@ -192,8 +193,8 @@ fun NowPlayingScreen(
                 contentKey = { it?.id },
                 transitionSpec = {
                     ContentTransform(
-                        targetContentEnter = fadeIn(tween(320)) + scaleIn(tween(320), initialScale = 0.94f),
-                        initialContentExit = fadeOut(tween(200)),
+                        targetContentEnter = fadeIn(tween(VantaMotion.EMPHASIZED_MS, easing = VantaMotion.DecelerateEasing)) + scaleIn(tween(VantaMotion.EMPHASIZED_MS, easing = VantaMotion.DecelerateEasing), initialScale = 0.97f),
+                        initialContentExit = fadeOut(tween(VantaMotion.FAST_MS, easing = VantaMotion.StandardEasing)),
                         sizeTransform = SizeTransform(clip = false)
                     )
                 },

@@ -6,6 +6,7 @@ import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
+import com.vanta.app.ui.motion.VantaMotion
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.runtime.Composable
@@ -34,15 +35,15 @@ fun VantaRoot(
             if (targetState) {
                 // Открытие плеера: выезжает снизу
                 ContentTransform(
-                    targetContentEnter = slideInVertically(tween(380)) { it } + fadeIn(tween(250)),
-                    initialContentExit = fadeOut(tween(300)),
+                    targetContentEnter = slideInVertically(tween(VantaMotion.EMPHASIZED_MS, easing = VantaMotion.DecelerateEasing)) { (it * 0.08f).toInt() } + fadeIn(tween(VantaMotion.NORMAL_MS, easing = VantaMotion.StandardEasing)),
+                    initialContentExit = fadeOut(tween(VantaMotion.NORMAL_MS, easing = VantaMotion.StandardEasing)),
                     targetContentZIndex = 1f
                 )
             } else {
                 // Закрытие: плеер уезжает вниз, главная проявляется
                 ContentTransform(
-                    targetContentEnter = fadeIn(tween(300)),
-                    initialContentExit = slideOutVertically(tween(320)) { it } + fadeOut(tween(250)),
+                    targetContentEnter = fadeIn(tween(VantaMotion.NORMAL_MS, easing = VantaMotion.StandardEasing)),
+                    initialContentExit = slideOutVertically(tween(VantaMotion.NORMAL_MS, easing = VantaMotion.StandardEasing)) { (it * 0.06f).toInt() } + fadeOut(tween(VantaMotion.NORMAL_MS, easing = VantaMotion.StandardEasing)),
                     targetContentZIndex = -1f
                 )
             }
