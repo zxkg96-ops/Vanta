@@ -39,10 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.hazeSource
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.vanta.app.ui.components.AlbumCard
@@ -75,10 +72,6 @@ fun HomeScreen(
     var newPlaylistFor by remember { mutableStateOf<Track?>(null) }
     var showNewPlaylist by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
-    val hazeState = remember { HazeState() }
-    // Список уходит под вкладки и мини-плеер, чтобы стекло размывало его
-    val topInset = 72.dp
-    val bottomInset = 96.dp
 
     val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         Manifest.permission.READ_MEDIA_AUDIO
@@ -172,10 +165,32 @@ fun HomeScreen(
             )
         },
         containerColor = MaterialTheme.colorScheme.background,
+        bottomBar = {
+            AnimatedVisibility(
+                visible = state.player.queue.getOrNull(state.player.currentIndex) != null,
+                enter = slideInVertically { it } + fadeIn(),
+                exit = slideOutVertically { it } + fadeOut()
+            ) {
+                MiniPlayer(
+                    state = state.player,
+                    onOpen = onOpenPlayer,
+                    onToggle = viewModel::togglePlayback,
+                    onNext = viewModel::next,
+                    onDismiss = viewModel::closePlayer,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+                )
+            }
+        }
     ) { padding ->
-        Box(Modifier.fillMaxSize().padding(top = padding.calculateTopPadding())) {
-            // Контент: источник для размытия
-            Box(Modifier.fillMaxSize().hazeSource(state = hazeState)) {
+        Column(Modifier.fillMaxSize().padding(padding)) {
+            GlassTabBar(
+                titles = listOf("Треки", "Альбомы", "Артисты", "Плейлисты"),
+                selected = tab,
+                onSelect = { tab = it },
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+
+            Box(Modifier.weight(1f).fillMaxWidth()) {
                 when (tab) {
                     0 -> TracksTab(
                         tracks = state.tracks,
@@ -186,9 +201,7 @@ fun HomeScreen(
                         onPlay = viewModel::play,
                         onLongClick = { actionsTrack = it },
                         onRequestPermission = { launcher.launch(permission) },
-                        onRescan = viewModel::rescan,
-                        topInset = topInset,
-                        bottomInset = bottomInset
+                        onRescan = viewModel::rescan
                     )
                     1 -> if (albums.isEmpty()) {
                         EmptyText("Альбомов пока нет")
@@ -196,10 +209,7 @@ fun HomeScreen(
                         LazyVerticalGrid(
                             columns = GridCells.Adaptive(144.dp),
                             modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(
-                                start = 20.dp, end = 20.dp,
-                                top = topInset + 12.dp, bottom = bottomInset + 12.dp
-                            ),
+                            contentPadding = PaddingValues(20.dp),
                             horizontalArrangement = Arrangement.spacedBy(16.dp),
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
@@ -213,10 +223,7 @@ fun HomeScreen(
                     } else {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
-                            contentPadding = PaddingValues(
-                                start = 20.dp, end = 20.dp,
-                                top = topInset + 8.dp, bottom = bottomInset
-                            )
+                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)
                         ) {
                             items(artists, key = { it.id }) { artist ->
                                 SimpleRow(
@@ -230,10 +237,7 @@ fun HomeScreen(
                     }
                     else -> LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(
-                            start = 20.dp, end = 20.dp,
-                            top = topInset + 8.dp, bottom = bottomInset
-                        )
+                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)
                     ) {
                         item {
                             val favTracks = allTracks.filter { it.id in favorites }
@@ -275,37 +279,6 @@ fun HomeScreen(
                     }
                 }
             }
-
-            // Вкладки поверх списка
-            GlassTabBar(
-                titles = listOf("Треки", "Альбомы", "Артисты", "Плейлисты"),
-                selected = tab,
-                onSelect = { tab = it },
-                hazeState = hazeState,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-            )
-
-            // Мини-плеер поверх списка
-            AnimatedVisibility(
-                visible = state.player.queue.getOrNull(state.player.currentIndex) != null,
-                enter = slideInVertically { it } + fadeIn(),
-                exit = slideOutVertically { it } + fadeOut(),
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = padding.calculateBottomPadding())
-            ) {
-                MiniPlayer(
-                    state = state.player,
-                    onOpen = onOpenPlayer,
-                    onToggle = viewModel::togglePlayback,
-                    onNext = viewModel::next,
-                    onDismiss = viewModel::closePlayer,
-                    hazeState = hazeState,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
-                )
-            }
         }
     }
 
@@ -316,7 +289,8 @@ fun HomeScreen(
             onEnabled = viewModel::setEqEnabled,
             onBand = viewModel::setEqBand,
             onBass = viewModel::setBassBoost,
-            onPreset = viewModel::applyPreset
+            onPreset = viewModel::applyPreset,
+            onAuto = viewModel::setAutoHeadphones
         )
     }
 
@@ -408,9 +382,7 @@ private fun TracksTab(
     onPlay: (Track) -> Unit,
     onLongClick: (Track) -> Unit,
     onRequestPermission: () -> Unit,
-    onRescan: () -> Unit,
-    topInset: Dp,
-    bottomInset: Dp
+    onRescan: () -> Unit
 ) {
     val heart: @Composable () -> Unit = {
         Icon(
@@ -446,10 +418,7 @@ private fun TracksTab(
         }
         else -> LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(
-                start = 20.dp, end = 20.dp,
-                top = topInset + 10.dp, bottom = bottomInset
-            ),
+            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 18.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             item {

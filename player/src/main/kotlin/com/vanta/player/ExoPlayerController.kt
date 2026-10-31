@@ -2,7 +2,12 @@ package com.vanta.player
 
 import android.content.Context
 import android.content.Intent
+import android.media.AudioDeviceCallback
+import android.media.AudioDeviceInfo
+import android.media.AudioManager
 import android.media.audiofx.BassBoost
+import android.os.Handler
+import android.os.Looper
 import android.media.audiofx.Equalizer
 import android.os.SystemClock
 import androidx.media3.common.AudioAttributes
@@ -102,9 +107,105 @@ class ExoPlayerController(
     /** Нужен сервису фонового воспроизведения (MediaSession). */
     val exoPlayer: ExoPlayer get() = player
 
+    private val audioManager = appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    private var autoHeadphones = prefs.getBoolean("eq_auto", true)
+    private var outputName: String? = null
+    private var autoApplied = false
+
     init {
         instance = this
         ensureEffects()
+        try {
+            audioManager.registerAudioDeviceCallback(object : AudioDeviceCallback() {
+                override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>?) = onOutputChanged()
+                override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>?) = onOutputChanged()
+            }, Handler(Looper.getMainLooper()))
+        } catch (e: Exception) {
+        }
+        onOutputChanged()
+    }
+
+    // ---------- Автонастройка под наушники ----------
+
+    private fun findHeadphones(): AudioDeviceInfo? =
+        audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).firstOrNull {
+            it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
+                it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
+                it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+                it.type == AudioDeviceInfo.TYPE_USB_HEADSET ||
+                it.type == AudioDeviceInfo.TYPE_BLE_HEADSET
+        }
+
+    private fun onOutputChanged() {
+        val device = try { findHeadphones() } catch (e: Exception) { null }
+        outputName = device?.let {
+            val kind = when (it.type) {
+                AudioDeviceInfo.TYPE_BLUETOOTH_A2DP, AudioDeviceInfo.TYPE_BLE_HEADSET -> "Bluetooth-наушники"
+                AudioDeviceInfo.TYPE_USB_HEADSET -> "USB-гарнитура"
+                else -> "Проводные наушники"
+            }
+            val name = it.productName?.toString()?.takeIf { n -> n.isNotBlank() }
+            if (name != null) "$kind · $name" else kind
+        }
+        if (autoHeadphones) applyAutoProfile(device) else publishEq()
+    }
+
+    /** Мягкая «наушниковая» кривая: больше баса и воздуха, средние без изменений. */
+    private fun applyAutoProfile(device: AudioDeviceInfo?) {
+        ensureEffects()
+        val eq = equalizer
+        if (eq == null) {
+            _state.update { it.copy(autoHeadphones = autoHeadphones, outputName = outputName) }
+            return
+        }
+        try {
+            val n = eq.numberOfBands.toInt()
+            val range = eq.bandLevelRange
+            if (device != null) {
+                for (b in 0 until n) {
+                    val hz = eq.getCenterFreq(b.toShort()) / 1000
+                    val gainDb = when {
+                        hz < 120 -> 4f
+                        hz < 500 -> 2f
+                        hz < 2000 -> 0f
+                        hz < 6000 -> 1.5f
+                        else -> 2.5f
+                    }
+                    val level = (gainDb * 100).toInt().coerceIn(range[0].toInt(), range[1].toInt())
+                    eq.setBandLevel(b.toShort(), level.toShort())
+                }
+                eq.setEnabled(true)
+                val bass = if (device.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP) 20 else 15
+                bassBoost?.let { bb ->
+                    if (bb.strengthSupported) bb.setStrength((bass * 10).toShort())
+                    bb.setEnabled(true)
+                }
+                prefs.edit().putBoolean("eq_on", true).putInt("eq_bass", bass).apply()
+                currentPreset = "Авто · наушники"
+                autoApplied = true
+                saveBands()
+            } else if (autoApplied) {
+                // Наушники отключили: вернуть ровный звук для динамика
+                for (b in 0 until n) eq.setBandLevel(b.toShort(), 0)
+                eq.setEnabled(false)
+                bassBoost?.let { bb ->
+                    if (bb.strengthSupported) bb.setStrength(0)
+                    bb.setEnabled(false)
+                }
+                prefs.edit().putBoolean("eq_on", false).putInt("eq_bass", 0).apply()
+                currentPreset = null
+                autoApplied = false
+                saveBands()
+            }
+        } catch (e: Exception) {
+        }
+        publishEq()
+    }
+
+    override fun setAutoHeadphones(on: Boolean) {
+        autoHeadphones = on
+        prefs.edit().putBoolean("eq_auto", on).apply()
+        if (on) onOutputChanged() else publishEq()
     }
 
     private fun startPlaybackService() {
@@ -396,7 +497,9 @@ class ExoPlayerController(
                 bassBoostSupported = bassBoost?.strengthSupported == true,
                 bassBoost = bbLevel / 10,
                 presets = (0 until eq.numberOfPresets.toInt()).map { eq.getPresetName(it.toShort()) },
-                currentPreset = currentPreset
+                currentPreset = currentPreset,
+                autoHeadphones = autoHeadphones,
+                outputName = outputName
             )
             _state.update { it.copy(equalizer = st) }
         } catch (e: Exception) {

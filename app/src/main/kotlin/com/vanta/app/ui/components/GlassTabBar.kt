@@ -19,8 +19,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.hazeEffect
 
 /** Островок с вкладками и «стеклянной» таблеткой, которая перетекает к выбранной вкладке. */
 @Composable
@@ -28,27 +26,14 @@ fun GlassTabBar(
     titles: List<String>,
     selected: Int,
     onSelect: (Int) -> Unit,
-    modifier: Modifier = Modifier,
-    hazeState: HazeState? = null
+    modifier: Modifier = Modifier
 ) {
     val plate = RoundedCornerShape(28.dp)
-    val plateColor = MaterialTheme.colorScheme.surfaceVariant
     BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
             .clip(plate)
-            .then(
-                if (hazeState != null) {
-                    Modifier.hazeEffect(state = hazeState) {
-                        blurRadius = 24.dp
-                        noiseFactor = 0.05f
-                        backgroundColor = plateColor
-                    }
-                } else {
-                    Modifier.background(plateColor)
-                }
-            )
-            .glass(plate, strength = 0.45f)
+            .background(MaterialTheme.colorScheme.surfaceVariant)
             .padding(4.dp)
     ) {
         val tabW = maxWidth / titles.size
@@ -68,7 +53,7 @@ fun GlassTabBar(
                 .offset(x = left)
                 .width((right - left).coerceAtLeast(0.dp))
                 .height(40.dp)
-                .glass(RoundedCornerShape(24.dp))
+                .flatFill(RoundedCornerShape(24.dp), Color.White.copy(alpha = 0.16f))
         )
 
         Row(Modifier.fillMaxWidth().height(40.dp)) {

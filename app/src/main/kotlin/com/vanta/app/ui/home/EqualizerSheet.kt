@@ -21,7 +21,8 @@ fun EqualizerSheet(
     onEnabled: (Boolean) -> Unit,
     onBand: (Int, Float) -> Unit,
     onBass: (Int) -> Unit,
-    onPreset: (String) -> Unit
+    onPreset: (String) -> Unit,
+    onAuto: (Boolean) -> Unit
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(
@@ -46,6 +47,22 @@ fun EqualizerSheet(
                     modifier = Modifier.padding(top = 16.dp)
                 )
                 return@Column
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Авто под наушники", color = Color.White)
+                    Text(
+                        eq.outputName ?: "Наушники не подключены",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(checked = eq.autoHeadphones, onCheckedChange = onAuto)
             }
 
             if (eq.presets.isNotEmpty()) {

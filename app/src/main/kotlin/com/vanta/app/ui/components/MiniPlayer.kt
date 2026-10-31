@@ -33,8 +33,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.hazeEffect
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
@@ -48,12 +46,10 @@ fun MiniPlayer(
     onToggle: () -> Unit,
     onNext: () -> Unit,
     modifier: Modifier = Modifier,
-    onDismiss: (() -> Unit)? = null,
-    hazeState: HazeState? = null
+    onDismiss: (() -> Unit)? = null
 ) {
     val track = state.queue.getOrNull(state.currentIndex) ?: return
     val source = remember { MutableInteractionSource() }
-    val barColor = MaterialTheme.colorScheme.surfaceVariant
     val offsetY = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
     Surface(
@@ -80,18 +76,7 @@ fun MiniPlayer(
             }
             .pressScale(source)
             .clip(RoundedCornerShape(18.dp))
-            .then(
-                if (hazeState != null) {
-                    Modifier.hazeEffect(state = hazeState) {
-                        blurRadius = 24.dp
-                        noiseFactor = 0.05f
-                        backgroundColor = barColor
-                    }
-                } else {
-                    Modifier.background(barColor)
-                }
-            )
-            .glass(RoundedCornerShape(18.dp), strength = 0.5f)
+            .background(MaterialTheme.colorScheme.surfaceVariant)
             .clickable(interactionSource = source, indication = LocalIndication.current, onClick = onOpen),
         color = Color.Transparent,
         shape = RoundedCornerShape(18.dp)

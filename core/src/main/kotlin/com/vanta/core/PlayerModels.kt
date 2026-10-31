@@ -14,7 +14,9 @@ data class EqualizerState(
     val trebleDb: Float = 0f,        // -12..12
     val balance: Float = 0f,         // -1..1
     val presets: List<String> = emptyList(),
-    val currentPreset: String? = null
+    val currentPreset: String? = null,
+    val autoHeadphones: Boolean = true,
+    val outputName: String? = null   // например «Bluetooth-наушники · Galaxy Buds»
 )
 
 data class PlayerState(

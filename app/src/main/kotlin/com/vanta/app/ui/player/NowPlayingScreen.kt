@@ -8,7 +8,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.lerp as lerpColor
-import com.vanta.app.ui.components.glass
+import com.vanta.app.ui.components.flatFill
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -113,25 +113,6 @@ fun NowPlayingScreen(
     val artColor = artColors.dark
     val accent = artColors.accent
 
-    // Пульсация краёв обложки (имитация ритма ~100 BPM)
-    val glowTransition = rememberInfiniteTransition(label = "glow")
-    val beat by glowTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(300, easing = FastOutSlowInEasing), AnimRepeatMode.Reverse),
-        label = "beat"
-    )
-    val spin by glowTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(6000, easing = LinearEasing), AnimRepeatMode.Restart),
-        label = "spin"
-    )
-    val glowLevel by animateFloatAsState(
-        targetValue = if (state.isPlaying) 1f else 0f,
-        animationSpec = tween(500),
-        label = "glowLevel"
-    )
 
     val artScale by animateFloatAsState(
         targetValue = if (state.isPlaying) 1f else 0.9f,
@@ -231,38 +212,6 @@ fun NowPlayingScreen(
                                 scaleX = artScale
                                 scaleY = artScale
                             }
-                            .drawBehind {
-                                val lvl = glowLevel
-                                if (lvl > 0.01f) {
-                                    val b = beat
-                                    val corner = 20.dp.toPx()
-                                    val gap = (3.dp + 2.dp * b).toPx()
-                                    for (i in 1..6) {
-                                        val grow = gap * i
-                                        val a = (0.05f + 0.12f * b) * (7 - i) / 6f * lvl
-                                        drawRoundRect(
-                                            color = accent.copy(alpha = a),
-                                            topLeft = Offset(-grow, -grow),
-                                            size = Size(size.width + 2 * grow, size.height + 2 * grow),
-                                            cornerRadius = CornerRadius(corner + grow)
-                                        )
-                                    }
-                                    // Переливающаяся кромка: яркое пятно бежит по кругу
-                                    val n = 12
-                                    val stops = Array(n + 1) { i ->
-                                        val w = (sin(2f * PI.toFloat() * (i / n.toFloat() - spin)) + 1f) / 2f
-                                        (i / n.toFloat()) to lerpColor(accent.copy(alpha = 0.2f), Color.White, w * w)
-                                    }
-                                    drawRoundRect(
-                                        brush = Brush.sweepGradient(*stops),
-                                        topLeft = Offset.Zero,
-                                        size = size,
-                                        cornerRadius = CornerRadius(corner),
-                                        alpha = lvl,
-                                        style = Stroke(width = (1.5.dp + 1.5.dp * b).toPx())
-                                    )
-                                }
-                            }
                             .clip(RoundedCornerShape(20.dp))
                             .background(MaterialTheme.colorScheme.surfaceVariant),
                         contentAlignment = Alignment.Center
@@ -351,7 +300,7 @@ fun NowPlayingScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .glass(RoundedCornerShape(50))
+                    .flatFill(RoundedCornerShape(50), MaterialTheme.colorScheme.surfaceVariant)
                     .padding(horizontal = 8.dp, vertical = 10.dp),
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically

@@ -31,6 +31,9 @@ interface PlayerController {
     fun setBalance(value: Float)
     fun applyPreset(name: String)
 
+    /** Автоматически подбирать звук, когда подключены наушники. */
+    fun setAutoHeadphones(on: Boolean) {}
+
     /** Восстановить последнюю очередь и позицию (без автозапуска). */
     fun restoreSession(library: List<Track>) {}
 }

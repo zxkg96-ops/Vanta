@@ -107,6 +107,7 @@ class HomeViewModel @Inject constructor(
     fun setEqBand(index: Int, db: Float) = player.setEqBand(index, db)
     fun setBassBoost(level: Int) = player.setBassBoost(level)
     fun applyPreset(name: String) = player.applyPreset(name)
+    fun setAutoHeadphones(on: Boolean) = player.setAutoHeadphones(on)
 
     fun togglePlayback() = player.toggle()
     fun next() = player.next()
