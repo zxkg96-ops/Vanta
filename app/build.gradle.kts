@@ -45,6 +45,7 @@ dependencies {
 
     implementation(libs.coil.compose)
     implementation(libs.androidx.palette)
+    implementation(libs.haze)
 
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.hilt.android)
