@@ -5,21 +5,24 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import dagger.hilt.android.AndroidEntryPoint
-import com.vanta.app.ui.home.HomeScreen
+import androidx.activity.enableEdgeToEdge
+import com.vanta.app.ui.nav.VantaRoot
 import com.vanta.app.ui.theme.VantaTheme
 import com.vanta.core.PlayerController
+import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
     @Inject lateinit var playerController: PlayerController
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         setContent {
             VantaTheme {
-                HomeScreen()
+                VantaRoot(player = playerController)
             }
         }
         handleAudioIntent(intent)
