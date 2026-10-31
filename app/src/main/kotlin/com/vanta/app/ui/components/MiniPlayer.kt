@@ -1,6 +1,12 @@
 package com.vanta.app.ui.components
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.Animatable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import kotlinx.coroutines.launch
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
@@ -38,12 +44,36 @@ fun MiniPlayer(
     onOpen: () -> Unit,
     onToggle: () -> Unit,
     onNext: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onDismiss: (() -> Unit)? = null
 ) {
     val track = state.queue.getOrNull(state.currentIndex) ?: return
     val source = remember { MutableInteractionSource() }
+    val offsetY = remember { Animatable(0f) }
+    val scope = rememberCoroutineScope()
     Surface(
-        modifier = modifier.fillMaxWidth().pressScale(source)
+        modifier = modifier.fillMaxWidth()
+            .graphicsLayer { translationY = offsetY.value }
+            .pointerInput(Unit) {
+                detectVerticalDragGestures(
+                    onDragEnd = {
+                        scope.launch {
+                            if (offsetY.value > 120f && onDismiss != null) {
+                                onDismiss()
+                                offsetY.snapTo(0f)
+                            } else {
+                                offsetY.animateTo(0f)
+                            }
+                        }
+                    },
+                    onDragCancel = { scope.launch { offsetY.animateTo(0f) } },
+                    onVerticalDrag = { change, dy ->
+                        change.consume()
+                        scope.launch { offsetY.snapTo((offsetY.value + dy).coerceAtLeast(0f)) }
+                    }
+                )
+            }
+            .pressScale(source)
             .clickable(interactionSource = source, indication = LocalIndication.current, onClick = onOpen),
         color = MaterialTheme.colorScheme.surfaceVariant,
         shape = RoundedCornerShape(18.dp)

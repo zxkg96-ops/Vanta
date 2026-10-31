@@ -1,7 +1,8 @@
 package com.vanta.app.ui.components
 
 import androidx.compose.foundation.LocalIndication
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,17 +23,24 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.vanta.core.Track
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun TrackRow(
     track: Track,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    trailing: (@Composable () -> Unit)? = null
+    trailing: (@Composable () -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null
 ) {
     val source = remember { MutableInteractionSource() }
     Row(
         modifier = modifier.fillMaxWidth().pressScale(source).clip(RoundedCornerShape(14.dp))
-            .clickable(interactionSource = source, indication = LocalIndication.current, onClick = onClick)
+            .combinedClickable(
+                interactionSource = source,
+                indication = LocalIndication.current,
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
             .padding(horizontal = 4.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

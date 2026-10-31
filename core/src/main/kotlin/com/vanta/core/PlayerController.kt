@@ -30,4 +30,7 @@ interface PlayerController {
     fun setTreble(gainDb: Float)
     fun setBalance(value: Float)
     fun applyPreset(name: String)
+
+    /** Восстановить последнюю очередь и позицию (без автозапуска). */
+    fun restoreSession(library: List<Track>) {}
 }

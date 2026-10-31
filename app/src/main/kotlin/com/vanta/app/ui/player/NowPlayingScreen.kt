@@ -17,6 +17,13 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures as detectHDrag
+import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.QueueMusic
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -89,6 +96,9 @@ fun NowPlayingScreen(
 ) {
     val state by player.state.collectAsStateWithLifecycle()
     val track = state.queue.getOrNull(state.currentIndex)
+    var showQueue by remember { mutableStateOf(false) }
+    var showTimer by remember { mutableStateOf(false) }
+    val artColor = rememberArtColor(track?.artUri, MaterialTheme.colorScheme.surface)
 
     val artScale by animateFloatAsState(
         targetValue = if (state.isPlaying) 1f else 0.9f,
@@ -106,7 +116,7 @@ fun NowPlayingScreen(
             .background(
                 Brush.verticalGradient(
                     listOf(
-                        MaterialTheme.colorScheme.surface,
+                        artColor,
                         MaterialTheme.colorScheme.background
                     )
                 )
@@ -126,7 +136,19 @@ fun NowPlayingScreen(
                     Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Close")
                 }
             },
-            actions = { Spacer(Modifier.size(48.dp)) },
+            actions = {
+                IconButton(onClick = { showTimer = true }) {
+                    Icon(
+                        Icons.Default.Bedtime,
+                        contentDescription = "Таймер сна",
+                        tint = if (state.sleepTimerLeftMs != null) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                IconButton(onClick = { showQueue = true }) {
+                    Icon(Icons.Default.QueueMusic, contentDescription = "Очередь")
+                }
+            },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
         )
 
@@ -140,6 +162,19 @@ fun NowPlayingScreen(
 
             AnimatedContent(
                 targetState = track,
+                modifier = Modifier.pointerInput(Unit) {
+                    var dx = 0f
+                    detectHDrag(
+                        onDragStart = { dx = 0f },
+                        onDragEnd = {
+                            if (dx > 140f) player.prev() else if (dx < -140f) player.next()
+                        },
+                        onHorizontalDrag = { change, delta ->
+                            change.consume()
+                            dx += delta
+                        }
+                    )
+                },
                 contentKey = { it?.id },
                 transitionSpec = {
                     (fadeIn(tween(320)) + scaleIn(tween(320), initialScale = 0.94f))
@@ -301,6 +336,38 @@ fun NowPlayingScreen(
                 }
             }
         }
+    }
+
+    if (showQueue) {
+        QueueSheet(
+            queue = state.queue,
+            current = state.currentIndex,
+            onDismiss = { showQueue = false },
+            onPlay = { player.playIndex(it) },
+            onRemove = { player.removeFromQueue(it) },
+            onMove = { from, to -> player.moveInQueue(from, to) }
+        )
+    }
+
+    if (showTimer) {
+        AlertDialog(
+            onDismissRequest = { showTimer = false },
+            confirmButton = { TextButton(onClick = { showTimer = false }) { Text("Закрыть") } },
+            title = { Text("Таймер сна") },
+            text = {
+                Column {
+                    state.sleepTimerLeftMs?.let {
+                        Text("Осталось ${formatMs(it)}", color = MaterialTheme.colorScheme.primary)
+                    }
+                    listOf(15, 30, 45, 60, 90).forEach { m ->
+                        TextButton(onClick = { player.setSleepTimer(m); showTimer = false }) { Text("$m мин") }
+                    }
+                    if (state.sleepTimerLeftMs != null) {
+                        TextButton(onClick = { player.setSleepTimer(null); showTimer = false }) { Text("Выключить таймер") }
+                    }
+                }
+            }
+        )
     }
 }
 
