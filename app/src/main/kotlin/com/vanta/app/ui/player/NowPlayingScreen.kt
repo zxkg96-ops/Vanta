@@ -5,19 +5,28 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode as AnimRepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -39,21 +48,25 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
@@ -64,6 +77,8 @@ import coil.compose.AsyncImage
 import com.vanta.core.PlayerController
 import com.vanta.core.RepeatMode
 import java.util.Locale
+import kotlin.math.PI
+import kotlin.math.sin
 import java.util.concurrent.TimeUnit
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -171,6 +186,7 @@ fun NowPlayingScreen(
                     Text(
                         text = t?.title ?: "Nothing playing",
                         style = MaterialTheme.typography.headlineSmall,
+                        color = Color.White,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                         textAlign = TextAlign.Center
@@ -186,30 +202,34 @@ fun NowPlayingScreen(
                 }
             }
 
-            Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.height(16.dp))
 
-            // Seek bar
             var sliderPosition by remember(state.positionMs, state.durationMs) {
                 mutableFloatStateOf(
                     if (state.durationMs > 0) state.positionMs.toFloat() / state.durationMs else 0f
                 )
             }
             var isSeeking by remember { mutableFloatStateOf(-1f) }
+            val shownProgress = if (isSeeking >= 0f) isSeeking else sliderPosition
 
-            Slider(
-                value = if (isSeeking >= 0f) isSeeking else sliderPosition,
-                onValueChange = { isSeeking = it },
-                onValueChangeFinished = {
-                    val target = (isSeeking * state.durationMs).toLong()
-                    player.seekTo(target)
+            // Эквалайзер (имитация)
+            EqualizerBars(
+                isPlaying = state.isPlaying,
+                progress = shownProgress,
+                modifier = Modifier.fillMaxWidth().height(40.dp)
+            )
+
+            Spacer(Modifier.height(6.dp))
+
+            // Seek bar
+            SeekBar(
+                progress = shownProgress,
+                onDrag = { isSeeking = it },
+                onSeek = { f ->
+                    player.seekTo((f * state.durationMs).toLong())
                     isSeeking = -1f
                 },
-                modifier = Modifier.fillMaxWidth(),
-                colors = SliderDefaults.colors(
-                    thumbColor = MaterialTheme.colorScheme.primary,
-                    activeTrackColor = MaterialTheme.colorScheme.primary,
-                    inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
-                )
+                modifier = Modifier.fillMaxWidth()
             )
 
             Row(
@@ -289,4 +309,121 @@ private fun formatMs(ms: Long): String {
     val minutes = TimeUnit.MILLISECONDS.toMinutes(ms)
     val seconds = TimeUnit.MILLISECONDS.toSeconds(ms) % 60
     return String.format(Locale.US, "%d:%02d", minutes, seconds)
+}
+
+
+/** Тонкая цельная дорожка без ползунка: тап и перетаскивание. */
+@Composable
+private fun SeekBar(
+    progress: Float,
+    onDrag: (Float) -> Unit,
+    onSeek: (Float) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var widthPx by remember { mutableFloatStateOf(1f) }
+    val currentOnDrag by rememberUpdatedState(onDrag)
+    val currentOnSeek by rememberUpdatedState(onSeek)
+
+    Box(
+        modifier = modifier
+            .height(28.dp)
+            .onSizeChanged { widthPx = it.width.toFloat().coerceAtLeast(1f) }
+            .pointerInput(Unit) {
+                detectTapGestures { offset ->
+                    currentOnSeek((offset.x / widthPx).coerceIn(0f, 1f))
+                }
+            }
+            .pointerInput(Unit) {
+                var last = 0f
+                detectHorizontalDragGestures(
+                    onDragStart = { offset ->
+                        last = (offset.x / widthPx).coerceIn(0f, 1f)
+                        currentOnDrag(last)
+                    },
+                    onDragEnd = { currentOnSeek(last) },
+                    onDragCancel = { currentOnSeek(last) },
+                    onHorizontalDrag = { change, _ ->
+                        change.consume()
+                        last = (change.position.x / widthPx).coerceIn(0f, 1f)
+                        currentOnDrag(last)
+                    }
+                )
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(4.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(progress.coerceIn(0f, 1f))
+                    .fillMaxHeight()
+                    .background(MaterialTheme.colorScheme.primary)
+            )
+        }
+    }
+}
+
+private const val EQ_BARS = 36
+
+private class EqBar(val k1: Int, val o1: Float, val k2: Int, val o2: Float, val envelope: Float)
+
+/** Имитация эквалайзера: столбики прыгают, пока играет музыка, и опускаются на паузе. */
+@Composable
+private fun EqualizerBars(
+    isPlaying: Boolean,
+    progress: Float,
+    modifier: Modifier = Modifier
+) {
+    val bars = remember {
+        val rnd = java.util.Random(7)
+        List(EQ_BARS) { i ->
+            EqBar(
+                k1 = 1 + rnd.nextInt(3),
+                o1 = rnd.nextFloat() * 2f * PI.toFloat(),
+                k2 = 2 + rnd.nextInt(3),
+                o2 = rnd.nextFloat() * 2f * PI.toFloat(),
+                envelope = 0.6f + 0.4f * sin(PI.toFloat() * (i + 0.5f) / EQ_BARS)
+            )
+        }
+    }
+    val transition = rememberInfiniteTransition(label = "eq")
+    val phase by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(2400, easing = LinearEasing), AnimRepeatMode.Restart),
+        label = "eqPhase"
+    )
+    val level by animateFloatAsState(
+        targetValue = if (isPlaying) 1f else 0f,
+        animationSpec = tween(450),
+        label = "eqLevel"
+    )
+    val active = MaterialTheme.colorScheme.primary
+    val idle = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+    val twoPi = 2f * PI.toFloat()
+
+    Canvas(modifier) {
+        val barW = size.width / (EQ_BARS * 1.7f)
+        val gap = (size.width - barW * EQ_BARS) / (EQ_BARS - 1)
+        val minH = 3.dp.toPx()
+        bars.forEachIndexed { i, bar ->
+            val s1 = sin(twoPi * bar.k1 * phase + bar.o1)
+            val s2 = sin(twoPi * bar.k2 * phase + bar.o2)
+            val v = ((0.5f + 0.25f * s1 + 0.25f * s2) * bar.envelope).coerceIn(0f, 1f)
+            val h = minH + (size.height - minH) * v * level
+            val x = i * (barW + gap)
+            val played = (i + 0.5f) / EQ_BARS <= progress
+            drawRoundRect(
+                color = if (played) active else idle,
+                topLeft = Offset(x, size.height - h),
+                size = Size(barW, h),
+                cornerRadius = CornerRadius(barW / 2f, barW / 2f)
+            )
+        }
+    }
 }

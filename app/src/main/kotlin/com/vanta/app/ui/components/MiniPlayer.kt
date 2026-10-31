@@ -8,9 +8,11 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Pause
@@ -25,6 +27,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.vanta.core.PlayerState
@@ -48,11 +51,14 @@ fun MiniPlayer(
         Row(Modifier.padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(track.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(track.title, style = MaterialTheme.typography.titleMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(track.artist ?: "Unknown artist", style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
             }
-            IconButton(onClick = onToggle) {
+            IconButton(
+                onClick = onToggle,
+                modifier = Modifier.size(44.dp).background(MaterialTheme.colorScheme.primary, CircleShape)
+            ) {
                 AnimatedContent(
                     targetState = state.isPlaying,
                     transitionSpec = {
@@ -61,11 +67,19 @@ fun MiniPlayer(
                     },
                     label = "miniPlayPause"
                 ) { playing ->
-                    Icon(if (playing) Icons.Default.Pause else Icons.Default.PlayArrow, contentDescription = "Play or pause")
+                    Icon(
+                        if (playing) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        contentDescription = "Play or pause",
+                        tint = MaterialTheme.colorScheme.onPrimary
+                    )
                 }
             }
-            IconButton(onClick = onNext) {
-                Icon(Icons.Default.SkipNext, contentDescription = "Next")
+            Spacer(Modifier.width(8.dp))
+            IconButton(
+                onClick = onNext,
+                modifier = Modifier.size(44.dp).background(Color.White.copy(alpha = 0.12f), CircleShape)
+            ) {
+                Icon(Icons.Default.SkipNext, contentDescription = "Next", tint = Color.White)
             }
         }
     }
