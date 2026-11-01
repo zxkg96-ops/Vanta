@@ -9,3 +9,7 @@ val VantaSilver = Color(0xFFC5C8CE)
 val VantaText = Color(0xFFF5F5F5)
 val VantaMuted = Color(0xFF858A94)
 val VantaDivider = Color(0xFF292D35)
+
+// Включённые режимы «Перемешать» и «Повтор» в плеере. Принятое решение: контраст ~2:1 на фоне VantaBlack,
+// без отдельного вопроса не менять.
+val VantaActiveBlue = Color(0xFF1F3A8A)

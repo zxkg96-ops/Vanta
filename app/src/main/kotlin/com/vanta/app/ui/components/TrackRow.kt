@@ -26,6 +26,8 @@ import com.vanta.core.Track
  * Строка трека. [onClick] срабатывает на касании (см. [instantTap]), а не на отпускании:
  * палец лежит [INSTANT_TAP_WINDOW_MS] без движения — трек стартует; начался скролл — не стартует.
  * [onPressStart] вызывается сразу при касании (прогрев файла).
+ * [trailing] (например, кнопка «⋮») — обычный дочерний элемент: он потребляет своё касание,
+ * и родительский [instantTap] трек не запускает.
  */
 @Composable
 fun TrackRow(
@@ -33,7 +35,6 @@ fun TrackRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     trailing: (@Composable () -> Unit)? = null,
-    onLongClick: (() -> Unit)? = null,
     onPressStart: (() -> Unit)? = null
 ) {
     val source = remember { MutableInteractionSource() }
@@ -46,7 +47,6 @@ fun TrackRow(
             .instantTap(
                 interactionSource = source,
                 onPressStart = onPressStart,
-                onLongClick = onLongClick,
                 onTap = onClick
             )
             .padding(horizontal = 4.dp, vertical = 9.dp),

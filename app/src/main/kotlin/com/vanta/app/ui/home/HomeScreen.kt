@@ -42,6 +42,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
@@ -225,13 +226,12 @@ fun HomeScreen(
                 when (currentTab) {
                     0 -> TracksTab(
                         tracks = state.tracks,
-                        favorites = favorites,
                         searching = query.isNotBlank(),
                         permissionGranted = permissionGranted,
                         scanState = scanState,
                         onPlay = viewModel::play,
                         onWarmUp = viewModel::warmUp,
-                        onLongClick = { actionsTrack = it },
+                        onMore = { actionsTrack = it },
                         onRequestPermission = { launcher.launch(permission) },
                         onRescan = viewModel::rescan
                     )
@@ -421,24 +421,15 @@ private fun SimpleRow(
 @Composable
 private fun TracksTab(
     tracks: List<Track>,
-    favorites: Set<Long>,
     searching: Boolean,
     permissionGranted: Boolean,
     scanState: ScanState,
     onPlay: (Track) -> Unit,
     onWarmUp: (Track) -> Unit,
-    onLongClick: (Track) -> Unit,
+    onMore: (Track) -> Unit,
     onRequestPermission: () -> Unit,
     onRescan: () -> Unit
 ) {
-    val heart: @Composable () -> Unit = {
-        Icon(
-            Icons.Default.Favorite,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(18.dp)
-        )
-    }
     when {
         !permissionGranted && tracks.isEmpty() && !searching -> CenterColumn {
             Text("Нужен доступ к музыке на устройстве", style = MaterialTheme.typography.bodyLarge)
@@ -485,8 +476,13 @@ private fun TracksTab(
                     track = track,
                     onClick = { onPlay(track) },
                     onPressStart = { onWarmUp(track) },
-                    trailing = if (track.id in favorites) heart else null,
-                    onLongClick = { onLongClick(track) }
+                    trailing = {
+                        // Фиксированная зона касания 48 dp. Кнопка потребляет касание сама,
+                        // родительский instantTap строки при этом трек не запускает.
+                        IconButton(onClick = { onMore(track) }, modifier = Modifier.size(48.dp)) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "Меню трека")
+                        }
+                    }
                 )
             }
         }

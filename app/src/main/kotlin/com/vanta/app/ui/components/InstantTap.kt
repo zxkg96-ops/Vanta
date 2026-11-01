@@ -14,7 +14,6 @@ import androidx.compose.ui.input.pointer.PointerId
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.onClick as semanticsOnClick
-import androidx.compose.ui.semantics.onLongClick as semanticsOnLongClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.util.fastAny
@@ -33,17 +32,14 @@ private enum class TapOutcome { UP, MOVED, CANCELLED }
  * - Быстрый тап (палец поднят раньше окна) срабатывает сразу при отпускании.
  * - Если палец лежит [INSTANT_TAP_WINDOW_MS] без движения, [onTap] срабатывает сразу, палец ещё на экране.
  * - Если палец за окно ушёл дальше touch slop или жест забрал скролл, ничего не запускается.
- * - Долгое нажатие ([onLongClick]) срабатывает по системному таймауту, если палец остался на месте.
  * - [onPressStart] вызывается в момент касания (годится для лёгкого прогрева), до решения о запуске.
  */
 fun Modifier.instantTap(
     interactionSource: MutableInteractionSource,
     onPressStart: (() -> Unit)? = null,
-    onLongClick: (() -> Unit)? = null,
     onTap: () -> Unit
 ): Modifier = composed {
     val tapState = rememberUpdatedState(onTap)
-    val longState = rememberUpdatedState(onLongClick)
     val startState = rememberUpdatedState(onPressStart)
 
     this
@@ -52,12 +48,6 @@ fun Modifier.instantTap(
             semanticsOnClick(label = null) {
                 tapState.value()
                 true
-            }
-            if (longState.value != null) {
-                semanticsOnLongClick(label = null) {
-                    longState.value?.invoke()
-                    true
-                }
             }
         }
         .pointerInput(interactionSource) {
@@ -86,23 +76,9 @@ fun Modifier.instantTap(
                         return@awaitEachGesture
                     }
 
-                    val longCb = longState.value
-                    val tail: TapOutcome? = if (longCb != null) {
-                        val remain = (viewConfiguration.longPressTimeoutMillis - INSTANT_TAP_WINDOW_MS)
-                            .coerceAtLeast(0L)
-                        withTimeoutOrNull(remain) { awaitEndOrMove(down.id, down.position, slop) }
-                    } else {
-                        awaitEndOrMove(down.id, down.position, slop)
-                    }
-                    when (tail) {
-                        null -> {
-                            // Палец удержан дольше порога: открываем меню (трек уже играет).
-                            end = PressInteraction.Release(press)
-                            longCb?.invoke()
-                        }
-                        TapOutcome.UP -> end = PressInteraction.Release(press)
-                        else -> Unit // Начался скролл: просто снимаем нажатие.
-                    }
+                    // Палец лежит неподвижно: ждём отпускания. Начался скролл: просто снимаем нажатие.
+                    val tail = awaitEndOrMove(down.id, down.position, slop)
+                    if (tail == TapOutcome.UP) end = PressInteraction.Release(press)
                 } finally {
                     interactionSource.tryEmit(end)
                 }

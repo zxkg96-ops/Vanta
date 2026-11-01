@@ -9,6 +9,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.lerp as lerpColor
 import com.vanta.app.ui.components.flatFill
+import com.vanta.app.ui.theme.VantaActiveBlue
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -196,7 +197,7 @@ fun NowPlayingScreen(
         animationSpec = VantaMotion.ArtworkSpring,
         label = "artScale"
     )
-    val activeColor = MaterialTheme.colorScheme.primary
+    val activeColor = VantaActiveBlue
     val idleColor = MaterialTheme.colorScheme.onSurfaceVariant
     val shuffleTint by animateColorAsState(if (state.shuffle) activeColor else idleColor, tween(VantaMotion.NORMAL_MS, easing = VantaMotion.StandardEasing), label = "shuffleTint")
     val repeatTint by animateColorAsState(if (state.repeat != RepeatMode.OFF) activeColor else idleColor, tween(VantaMotion.NORMAL_MS, easing = VantaMotion.StandardEasing), label = "repeatTint")
