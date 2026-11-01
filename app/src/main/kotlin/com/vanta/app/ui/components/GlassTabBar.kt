@@ -19,29 +19,39 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.util.lerp
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
 /**
  * Островок с вкладками и «стеклянной» таблеткой.
- * Тап по вкладке — таблетка перетекает к ней. Зажми саму таблетку и веди пальцем:
- * она приподнимается, едет за пальцем, а вкладка переключается сразу, как только
- * центр таблетки пересекает границу соседней вкладки.
+ *
+ * Таблетка следует за пейджером: [pagePosition] отдаёт дробную позицию страницы
+ * (currentPage + currentPageOffsetFraction), поэтому она едет синхронно с пальцем, листающим контент,
+ * и с анимацией перехода после отпускания. Тап по вкладке вызывает [onSelect].
+ *
+ * Зажми саму таблетку и веди пальцем: она приподнимается и едет за пальцем, вкладка переключается,
+ * как только центр таблетки пересекает границу соседней (с гистерезисом). При отпускании учитывается
+ * скорость жеста (бросок переносит на соседнюю вкладку), а таблетка мягко переходит под управление
+ * пейджера. Любую фазу можно перехватить пальцем.
  */
 @Composable
 fun GlassTabBar(
     titles: List<String>,
     selected: Int,
+    pagePosition: () -> Float,
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val plate = RoundedCornerShape(28.dp)
     val currentSelected by rememberUpdatedState(selected)
     val currentOnSelect by rememberUpdatedState(onSelect)
+    val currentPagePosition by rememberUpdatedState(pagePosition)
 
     BoxWithConstraints(
         modifier = modifier
@@ -59,11 +69,15 @@ fun GlassTabBar(
         val hystPx = with(LocalDensity.current) { 6.dp.toPx() }
         val scope = rememberCoroutineScope()
 
-        // Position of the pill in pixels. Only its render-layer offset changes while animating.
-        val indicatorX = remember { Animatable(selected * tabPx) }
         var pressed by remember { mutableStateOf(false) }
         var dragging by remember { mutableStateOf(false) }
-        var dragX by remember { mutableFloatStateOf(0f) }
+        // Позиция таблетки, пока её держит палец, и точка, из которой она «перетекает» к пейджеру после отпускания.
+        var fingerX by remember { mutableFloatStateOf(0f) }
+        var releaseFromX by remember { mutableFloatStateOf(0f) }
+        // 0 = таблетка там, где её отпустил палец, 1 = полностью под управлением пейджера.
+        val blend = remember { Animatable(1f) }
+        // Вкладка, которую таблетка уже запросила; не даёт вызывать onSelect на каждый кадр жеста.
+        var requested by remember { mutableIntStateOf(selected) }
         val lifted = pressed || dragging
 
         val lift by animateFloatAsState(
@@ -77,12 +91,14 @@ fun GlassTabBar(
             label = "pillGlow"
         )
 
-        LaunchedEffect(selected, tabPx) {
-            // While the finger holds the pill, the finger owns its position.
-            if (!dragging) {
-                indicatorX.animateTo(selected * tabPx, spring(dampingRatio = 0.76f, stiffness = 380f))
-            }
+        LaunchedEffect(selected) {
+            if (!dragging) requested = selected
         }
+
+        // Единственный источник позиции таблетки; читается только в фазе рисования.
+        fun pillX(): Float =
+            if (dragging) fingerX
+            else lerp(releaseFromX, currentPagePosition() * tabPx, blend.value)
 
         Box(
             Modifier
@@ -91,54 +107,73 @@ fun GlassTabBar(
                 .pointerInput(count, tabPx) {
                     detectTapGestures(
                         onPress = { off ->
-                            pressed = off.x >= indicatorX.value && off.x <= indicatorX.value + tabPx
+                            val x = pillX()
+                            pressed = off.x >= x && off.x <= x + tabPx
                             tryAwaitRelease()
                             pressed = false
                         },
                         onTap = { off ->
-                            currentOnSelect((off.x / tabPx).toInt().coerceIn(0, count - 1))
+                            val target = (off.x / tabPx).toInt().coerceIn(0, count - 1)
+                            requested = target
+                            currentOnSelect(target)
                         }
                     )
                 }
                 .pointerInput(count, tabPx) {
                     var grabbed = false
-                    val settle = {
-                        dragging = false
-                        grabbed = false
-                        scope.launch {
-                            indicatorX.animateTo(
-                                currentSelected * tabPx,
-                                spring(dampingRatio = 0.76f, stiffness = 380f)
-                            )
+                    var dragX = 0f
+                    val tracker = VelocityTracker()
+                    val release = {
+                        if (grabbed) {
+                            // Бросок: проецируем позицию таблетки по скорости и выбираем вкладку.
+                            val vx = tracker.calculateVelocity().x
+                            val projected = (fingerX + vx * 0.12f).coerceIn(0f, maxX)
+                            val target = ((projected + tabPx / 2f) / tabPx).toInt().coerceIn(0, count - 1)
+                            if (target != requested) {
+                                requested = target
+                                currentOnSelect(target)
+                            }
+                            releaseFromX = fingerX
+                            grabbed = false
+                            scope.launch {
+                                blend.snapTo(0f)
+                                dragging = false
+                                blend.animateTo(1f, spring(dampingRatio = 0.82f, stiffness = 260f))
+                            }
                         }
                         Unit
                     }
                     detectHorizontalDragGestures(
                         onDragStart = { off ->
                             // Only the pill itself can be dragged; a swipe elsewhere does nothing.
-                            grabbed = off.x >= indicatorX.value - hystPx &&
-                                off.x <= indicatorX.value + tabPx + hystPx
+                            val x = pillX()
+                            grabbed = off.x >= x - hystPx && off.x <= x + tabPx + hystPx
                             if (grabbed) {
+                                tracker.resetTracking()
+                                dragX = x
+                                fingerX = x
+                                requested = currentSelected
                                 dragging = true
-                                dragX = indicatorX.value
                             }
                         },
-                        onDragEnd = { settle() },
-                        onDragCancel = { settle() },
+                        onDragEnd = { release() },
+                        onDragCancel = { release() },
                         onHorizontalDrag = { change, dx ->
                             if (!grabbed) return@detectHorizontalDragGestures
                             change.consume()
+                            tracker.addPosition(change.uptimeMillis, change.position)
                             // A touch of give past the edges, then the pill stops.
                             dragX = (dragX + dx).coerceIn(-10f, maxX + 10f)
-                            scope.launch { indicatorX.snapTo(dragX) }
+                            fingerX = dragX
 
                             // Switch the tab as soon as the pill centre crosses into another one (with hysteresis).
                             val centre = dragX + tabPx / 2f
-                            val cur = currentSelected
+                            val cur = requested
                             val curCentre = (cur + 0.5f) * tabPx
                             if (abs(centre - curCentre) > tabPx / 2f + hystPx) {
                                 val target = (centre / tabPx).toInt().coerceIn(0, count - 1)
                                 if (target != cur) {
+                                    requested = target
                                     currentOnSelect(target)
                                 }
                             }
@@ -151,7 +186,7 @@ fun GlassTabBar(
                     .width(tabWidth)
                     .height(40.dp)
                     .graphicsLayer {
-                        translationX = indicatorX.value
+                        translationX = pillX()
                         scaleX = lift
                         scaleY = lift
                     }

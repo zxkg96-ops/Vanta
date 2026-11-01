@@ -10,6 +10,8 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.gestures.Orientation
@@ -30,6 +32,8 @@ import com.vanta.app.R
 import com.vanta.app.ui.components.GlassTabBar
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -53,16 +57,16 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.vanta.app.ui.components.AlbumCard
-import com.vanta.app.ui.components.MiniPlayer
+import com.vanta.app.ui.components.MiniPlayerSlotHeight
 import com.vanta.app.ui.components.TrackRow
 import com.vanta.core.ScanState
 import com.vanta.core.Track
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    viewModel: HomeViewModel = hiltViewModel(),
-    onOpenPlayer: () -> Unit = {}
+    viewModel: HomeViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val scanState by viewModel.scanState.collectAsStateWithLifecycle()
@@ -74,7 +78,10 @@ fun HomeScreen(
     val query by viewModel.query.collectAsStateWithLifecycle()
 
     var permissionGranted by remember { mutableStateOf(false) }
-    var tab by remember { mutableIntStateOf(0) }
+    val tabTitles = remember { listOf("Треки", "Альбомы", "Артисты", "Плейлисты") }
+    val pagerState = rememberPagerState(pageCount = { tabTitles.size })
+    val pagerScope = rememberCoroutineScope()
+    val tab = pagerState.currentPage
     var searching by remember { mutableStateOf(false) }
     var showEq by remember { mutableStateOf(false) }
     var actionsTrack by remember { mutableStateOf<Track?>(null) }
@@ -89,7 +96,6 @@ fun HomeScreen(
             playlist.id to playlist.trackIds.count { it in trackById }
         }
     }
-    val tabTitles = remember { listOf("Треки", "Альбомы", "Артисты", "Плейлисты") }
 
     val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         Manifest.permission.READ_MEDIA_AUDIO
@@ -170,7 +176,7 @@ fun HomeScreen(
                             Icon(Icons.Default.Refresh, contentDescription = "Rescan")
                         }
                         IconButton(onClick = {
-                            tab = 0
+                            pagerScope.launch { pagerState.animateScrollToPage(0) }
                             searching = true
                         }) {
                             Icon(Icons.Default.Search, contentDescription = "Search")
@@ -184,21 +190,14 @@ fun HomeScreen(
         },
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
+            // Сам мини-плеер живёт в VantaRoot: там же шторка, поэтому обложка может лететь между ними.
+            // Здесь только резерв места под него, чтобы список не уходил под мини-плеер.
             AnimatedVisibility(
                 visible = state.player.queue.getOrNull(state.player.currentIndex) != null,
-                enter = slideInVertically(spring(dampingRatio = 0.85f, stiffness = 400f)) { it } +
-                    fadeIn(tween(180, easing = VantaMotion.EnterEasing)),
-                exit = slideOutVertically(spring(dampingRatio = 1f, stiffness = 500f)) { it } +
-                    fadeOut(tween(140, easing = VantaMotion.StandardEasing))
+                enter = expandVertically(spring(dampingRatio = 0.85f, stiffness = 400f)),
+                exit = shrinkVertically(spring(dampingRatio = 1f, stiffness = 500f))
             ) {
-                MiniPlayer(
-                    state = state.player,
-                    onOpen = onOpenPlayer,
-                    onToggle = viewModel::togglePlayback,
-                    onNext = viewModel::next,
-                    onDismiss = viewModel::closePlayer,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
-                )
+                Spacer(Modifier.fillMaxWidth().height(MiniPlayerSlotHeight))
             }
         }
     ) { padding ->
@@ -206,42 +205,22 @@ fun HomeScreen(
             GlassTabBar(
                 titles = tabTitles,
                 selected = tab,
-                onSelect = { tab = it },
+                pagePosition = { pagerState.currentPage + pagerState.currentPageOffsetFraction },
+                onSelect = { pagerScope.launch { pagerState.animateScrollToPage(it) } },
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
             )
 
-            var swipeAcc by remember { mutableFloatStateOf(0f) }
+            // Контент вкладок едет за пальцем; таблетка следует за прогрессом пейджера.
             Box(
                 Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .draggable(
-                        orientation = Orientation.Horizontal,
-                        state = rememberDraggableState { swipeAcc += it },
-                        onDragStarted = { swipeAcc = 0f },
-                        onDragStopped = { v ->
-                            if (swipeAcc < -120f || v < -900f) {
-                                if (tab < tabTitles.lastIndex) tab += 1
-                            } else if (swipeAcc > 120f || v > 900f) {
-                                if (tab > 0) tab -= 1
-                            }
-                            swipeAcc = 0f
-                        }
-                    )
             ) {
-                AnimatedContent(
-                    targetState = tab,
-                    transitionSpec = {
-                        val dir = if (targetState > initialState) 1 else -1
-                        ContentTransform(
-                            targetContentEnter = slideInHorizontally(spring(dampingRatio = 0.9f, stiffness = 380f)) { (it * 0.18f).toInt() * dir } +
-                                fadeIn(tween(220, easing = VantaMotion.EnterEasing)),
-                            initialContentExit = slideOutHorizontally(tween(220, easing = VantaMotion.StandardEasing)) { -(it * 0.10f).toInt() * dir } +
-                                fadeOut(tween(140, easing = VantaMotion.StandardEasing)),
-                            sizeTransform = null
-                        )
-                    },
-                    label = "tabContent"
+                HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxSize(),
+                    beyondViewportPageCount = 1,
+                    key = { it }
                 ) { currentTab ->
                 when (currentTab) {
                     0 -> TracksTab(
@@ -251,6 +230,7 @@ fun HomeScreen(
                         permissionGranted = permissionGranted,
                         scanState = scanState,
                         onPlay = viewModel::play,
+                        onWarmUp = viewModel::warmUp,
                         onLongClick = { actionsTrack = it },
                         onRequestPermission = { launcher.launch(permission) },
                         onRescan = viewModel::rescan
@@ -446,6 +426,7 @@ private fun TracksTab(
     permissionGranted: Boolean,
     scanState: ScanState,
     onPlay: (Track) -> Unit,
+    onWarmUp: (Track) -> Unit,
     onLongClick: (Track) -> Unit,
     onRequestPermission: () -> Unit,
     onRescan: () -> Unit
@@ -503,6 +484,7 @@ private fun TracksTab(
                     modifier = Modifier.animateItem(),
                     track = track,
                     onClick = { onPlay(track) },
+                    onPressStart = { onWarmUp(track) },
                     trailing = if (track.id in favorites) heart else null,
                     onLongClick = { onLongClick(track) }
                 )

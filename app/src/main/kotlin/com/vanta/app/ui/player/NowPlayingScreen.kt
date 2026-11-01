@@ -34,6 +34,14 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
+import com.vanta.core.Track
+import kotlinx.coroutines.Job
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -114,7 +122,11 @@ import java.util.concurrent.TimeUnit
 @Composable
 fun NowPlayingScreen(
     player: PlayerController,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    // Пока обложка летит между мини-плеером и этим экраном, настоящая обложка скрыта (её рисует VantaRoot).
+    coverHidden: () -> Boolean = { false },
+    // Границы карусели в координатах этого экрана: по ним VantaRoot считает, куда должна прилететь обложка.
+    onCarouselBounds: (Rect) -> Unit = {}
 ) {
     val state by player.state.collectAsStateWithLifecycle()
     val playButtonScale = remember { Animatable(1f) }
@@ -130,23 +142,54 @@ fun NowPlayingScreen(
     val artColor = artColors.dark
     val accent = artColors.accent
 
-    // Finger-driven track swipe: the card follows the finger, then flies out and the next one settles in.
-    val trackSwipeX = remember { Animatable(0f) }
-    val trackScope = rememberCoroutineScope()
-    var trackWidthPx by remember { mutableFloatStateOf(1f) }
+    // Карусель обложек: текущая страница и соседние едут за пальцем (swipeX), после отпускания пружина
+    // подхватывает скорость жеста, а трек меняется, когда переход завершён.
+    val swipeX = remember { Animatable(0f) }
+    val carouselScope = rememberCoroutineScope()
+    var pageWidthPx by remember { mutableFloatStateOf(1f) }
+    val gapPx = with(LocalDensity.current) { 24.dp.toPx() }
+    val n = state.queue.size
+    val wrap = state.repeat == RepeatMode.ALL && n > 1
+    // Соседей показываем, только когда следующий и предыдущий трек однозначно известны
+    // (при shuffle и повторе одного трека порядок задаёт плеер, поэтому там остаётся одна карточка).
+    val neighborMode = !state.shuffle && state.repeat != RepeatMode.ONE && n > 1
+    // Виртуальный индекс страницы по центру. Меняется вместе с swipeX в один кадр, поэтому смена трека не мигает.
+    var anchor by remember { mutableIntStateOf(state.currentIndex.coerceAtLeast(0)) }
+    var releaseJob by remember { mutableStateOf<Job?>(null) }
     var swipeEnterFrom by remember { mutableFloatStateOf(0f) }
-    var lastTrackId by remember { mutableStateOf(track?.id) }
-    val currentTrackId by rememberUpdatedState(track?.id)
-    LaunchedEffect(track?.id) {
-        if (lastTrackId != track?.id) {
-            lastTrackId = track?.id
-            val from = if (swipeEnterFrom != 0f) swipeEnterFrom else trackWidthPx * 0.10f
+    val latestIndex by rememberUpdatedState(state.currentIndex)
+    val sheetCoords = remember { arrayOfNulls<LayoutCoordinates>(1) }
+
+    fun realOf(v: Int): Int = if (wrap && n > 0) Math.floorMod(v, n) else v
+    fun trackAt(v: Int): Track? = if (n == 0) null else state.queue.getOrNull(realOf(v))
+    val anchorReal = realOf(anchor)
+    val hasNext = neighborMode && (wrap || anchorReal < n - 1)
+    val hasPrev = neighborMode && (wrap || anchorReal > 0)
+
+    // Трек сменился не свайпом (кнопки, автопереход, очередь): плавно перелистываем карусель.
+    LaunchedEffect(state.currentIndex, n, wrap) {
+        val real = state.currentIndex
+        if (n == 0 || real < 0 || realOf(anchor) == real) return@LaunchedEffect
+        val step = pageWidthPx + gapPx
+        val settle = spring<Float>(dampingRatio = 0.9f, stiffness = 320f)
+        if (neighborMode && realOf(anchor + 1) == real) {
             swipeEnterFrom = 0f
-            trackSwipeX.snapTo(from)
-            trackSwipeX.animateTo(0f, spring(dampingRatio = 0.9f, stiffness = 320f))
+            anchor += 1
+            swipeX.snapTo(swipeX.value + step)
+            swipeX.animateTo(0f, settle)
+        } else if (neighborMode && realOf(anchor - 1) == real) {
+            swipeEnterFrom = 0f
+            anchor -= 1
+            swipeX.snapTo(swipeX.value - step)
+            swipeX.animateTo(0f, settle)
+        } else {
+            val from = if (swipeEnterFrom != 0f) swipeEnterFrom else pageWidthPx * 0.10f
+            swipeEnterFrom = 0f
+            anchor = real
+            swipeX.snapTo(from)
+            swipeX.animateTo(0f, settle)
         }
     }
-
 
     val artScale by animateFloatAsState(
         targetValue = if (state.isPlaying) 1f else 0.975f,
@@ -161,6 +204,7 @@ fun NowPlayingScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .onGloballyPositioned { sheetCoords[0] = it }
             .background(
                 Brush.verticalGradient(
                     listOf(
@@ -211,94 +255,97 @@ fun NowPlayingScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .onSizeChanged { trackWidthPx = it.width.toFloat().coerceAtLeast(1f) }
+                    .onSizeChanged { pageWidthPx = it.width.toFloat().coerceAtLeast(1f) }
+                    .onGloballyPositioned { c ->
+                        val root = sheetCoords[0]
+                        if (root != null && root.isAttached && c.isAttached) {
+                            onCarouselBounds(root.localBoundingBoxOf(c, clipBounds = false))
+                        }
+                    }
                     .draggable(
                         orientation = Orientation.Horizontal,
                         state = rememberDraggableState { d ->
-                            trackScope.launch { trackSwipeX.snapTo(trackSwipeX.value + d) }
+                            carouselScope.launch {
+                                val cur = swipeX.value
+                                // Резинка: если соседнего трека в эту сторону нет, страница тянется туго.
+                                val blocked = neighborMode &&
+                                    ((cur + d < 0f && !hasNext) || (cur + d > 0f && !hasPrev))
+                                swipeX.snapTo(cur + if (blocked) d * 0.35f else d)
+                            }
+                        },
+                        onDragStarted = {
+                            // Перехват пальцем на лету: останавливаем переход и продолжаем с текущей позиции.
+                            releaseJob?.cancel()
+                            swipeX.stop()
                         },
                         onDragStopped = { velocity ->
-                            val w = trackWidthPx
-                            val projected = trackSwipeX.value + velocity * 0.12f
-                            if (abs(projected) > w * 0.28f) {
-                                val goNext = projected < 0f
-                                val idBefore = currentTrackId
-                                swipeEnterFrom = if (goNext) w * 0.35f else -w * 0.35f
-                                trackSwipeX.animateTo(
-                                    targetValue = if (goNext) -w else w,
-                                    animationSpec = tween(150, easing = VantaMotion.StandardEasing)
-                                )
-                                if (goNext) player.next() else player.prev()
-                                delay(350)
-                                // Nothing changed (end of queue, restart): bring the card back.
-                                if (currentTrackId == idBefore) {
-                                    swipeEnterFrom = 0f
-                                    trackSwipeX.animateTo(0f, VantaMotion.ReleaseSpring)
+                            val w = pageWidthPx
+                            val step = w + gapPx
+                            val projected = swipeX.value + velocity * 0.12f
+                            val goNext = projected < 0f
+                            val hasTarget = if (neighborMode) (if (goNext) hasNext else hasPrev) else true
+                            releaseJob = carouselScope.launch {
+                                if (abs(projected) > w * 0.28f && hasTarget) {
+                                    if (neighborMode) {
+                                        swipeX.animateTo(
+                                            targetValue = if (goNext) -step else step,
+                                            animationSpec = spring(dampingRatio = 0.9f, stiffness = 380f),
+                                            initialVelocity = velocity
+                                        )
+                                        // Переход завершён: центруем новую страницу в тот же кадр и только потом меняем трек.
+                                        val newAnchor = if (goNext) anchor + 1 else anchor - 1
+                                        anchor = newAnchor
+                                        swipeX.snapTo(0f)
+                                        swipeEnterFrom = 0f
+                                        player.playIndex(realOf(newAnchor))
+                                    } else {
+                                        val indexBefore = latestIndex
+                                        swipeEnterFrom = if (goNext) w * 0.35f else -w * 0.35f
+                                        swipeX.animateTo(
+                                            targetValue = if (goNext) -w else w,
+                                            animationSpec = tween(150, easing = VantaMotion.StandardEasing),
+                                            initialVelocity = velocity
+                                        )
+                                        if (goNext) player.next() else player.prev()
+                                        delay(350)
+                                        // Nothing changed (end of queue, restart): bring the card back.
+                                        if (latestIndex == indexBefore) {
+                                            swipeEnterFrom = 0f
+                                            swipeX.animateTo(0f, VantaMotion.ReleaseSpring)
+                                        }
+                                    }
+                                } else {
+                                    swipeX.animateTo(0f, VantaMotion.ReleaseSpring, velocity)
                                 }
-                            } else {
-                                trackSwipeX.animateTo(0f, VantaMotion.ReleaseSpring, velocity)
                             }
                         }
                     )
-                    .graphicsLayer {
-                        translationX = trackSwipeX.value
-                        val f = (abs(trackSwipeX.value) / trackWidthPx).coerceIn(0f, 1f)
-                        alpha = 1f - 0.65f * f
-                    }
             ) {
-                val t = track
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    // Artwork
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(0.88f)
-                            .aspectRatio(1f)
-                            .graphicsLayer {
-                                scaleX = artScale
-                                scaleY = artScale
-                            }
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (t?.artUri != null) {
-                            AsyncImage(
-                                model = t.artUri,
-                                contentDescription = null,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        } else {
-                            Icon(
-                                Icons.Default.MusicNote,
-                                contentDescription = null,
-                                modifier = Modifier.size(96.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                val pageRange = if (neighborMode) -1..1 else 0..0
+                for (k in pageRange) {
+                    val v = anchor + k
+                    val pageTrack = trackAt(v)
+                    if (pageTrack != null || k == 0) {
+                        key(v) {
+                            CoverPage(
+                                track = pageTrack,
+                                artScale = { artScale },
+                                hideCover = { v == anchor && coverHidden() },
+                                modifier = Modifier.graphicsLayer {
+                                    // Всё считается из состояния в фазе рисования: смена anchor и swipeX
+                                    // применяется атомарно, без промежуточного кадра.
+                                    val step = pageWidthPx + gapPx
+                                    val x = swipeX.value + (v - anchor) * step
+                                    val f = (abs(x) / step).coerceIn(0f, 1f)
+                                    translationX = x
+                                    alpha = 1f - 0.65f * f
+                                    val sc = 1f - 0.06f * f
+                                    scaleX = sc
+                                    scaleY = sc
+                                }
                             )
                         }
                     }
-
-                    Spacer(Modifier.height(36.dp))
-
-                    Text(
-                        text = t?.title ?: "Nothing playing",
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = Color.White,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        text = t?.artist ?: "",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
                 }
             }
 
@@ -360,7 +407,7 @@ fun NowPlayingScreen(
                         tint = shuffleTint
                     )
                 }
-                PressIconButton(onClick = { swipeEnterFrom = -trackWidthPx * 0.10f; player.prev() }, modifier = Modifier.size(56.dp)) {
+                PressIconButton(onClick = { swipeEnterFrom = -pageWidthPx * 0.10f; player.prev() }, modifier = Modifier.size(56.dp)) {
                     Icon(Icons.Default.SkipPrevious, contentDescription = "Previous", tint = Color.White, modifier = Modifier.size(36.dp))
                 }
                 IconButton(
@@ -403,7 +450,7 @@ fun NowPlayingScreen(
                         )
                     }
                 }
-                PressIconButton(onClick = { swipeEnterFrom = trackWidthPx * 0.10f; player.next() }, modifier = Modifier.size(56.dp)) {
+                PressIconButton(onClick = { swipeEnterFrom = pageWidthPx * 0.10f; player.next() }, modifier = Modifier.size(56.dp)) {
                     Icon(Icons.Default.SkipNext, contentDescription = "Next", tint = Color.White, modifier = Modifier.size(36.dp))
                 }
                 PressIconButton(onClick = {
@@ -606,5 +653,70 @@ private fun EqualizerBars(
                 cornerRadius = CornerRadius(barW / 2f, barW / 2f)
             )
         }
+    }
+}
+
+/** Одна страница карусели: обложка, название и артист трека. */
+@Composable
+private fun CoverPage(
+    track: Track?,
+    artScale: () -> Float,
+    hideCover: () -> Boolean,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(0.88f)
+                .aspectRatio(1f)
+                .graphicsLayer {
+                    val s = artScale()
+                    scaleX = s
+                    scaleY = s
+                    // Пока обложка «летит», настоящую скрываем: вместо неё рисуется летящая копия.
+                    alpha = if (hideCover()) 0f else 1f
+                }
+                .clip(RoundedCornerShape(20.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center
+        ) {
+            if (track?.artUri != null) {
+                AsyncImage(
+                    model = track.artUri,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                Icon(
+                    Icons.Default.MusicNote,
+                    contentDescription = null,
+                    modifier = Modifier.size(96.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        Spacer(Modifier.height(36.dp))
+
+        Text(
+            text = track?.title ?: "Nothing playing",
+            style = MaterialTheme.typography.headlineSmall,
+            color = Color.White,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = track?.artist ?: "",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }

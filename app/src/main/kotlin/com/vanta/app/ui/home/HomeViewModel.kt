@@ -1,5 +1,7 @@
 package com.vanta.app.ui.home
 
+import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.vanta.app.data.UserDataStore
@@ -13,7 +15,9 @@ import com.vanta.core.ScanState
 import com.vanta.core.SortOrder
 import com.vanta.core.Track
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -29,6 +33,7 @@ data class HomeUiState(
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
+    @ApplicationContext private val appContext: Context,
     private val library: LibraryRepository,
     private val player: PlayerController,
     private val userData: UserDataStore
@@ -72,7 +77,42 @@ class HomeViewModel @Inject constructor(
         query.value = q
     }
 
+    private var warmedTrackId: Long = -1L
+
+    /**
+     * Лёгкий прогрев в момент касания: читаем первые килобайты файла в фоне, чтобы к старту
+     * `prepare()` читал уже из кэша ОС. ExoPlayer не трогаем: подготовить второй трек в том же
+     * плеере нельзя без остановки текущего, а откат мы не делаем.
+     */
+    fun warmUp(track: Track) {
+        if (track.id == warmedTrackId) return
+        warmedTrackId = track.id
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                appContext.contentResolver.openInputStream(Uri.parse(track.uri))?.use { input ->
+                    val buffer = ByteArray(32 * 1024)
+                    var total = 0
+                    while (total < 128 * 1024) {
+                        val n = input.read(buffer)
+                        if (n <= 0) break
+                        total += n
+                    }
+                }
+            } catch (_: Exception) {
+                // Прогрев необязателен: любая ошибка игнорируется.
+            }
+        }
+    }
+
     fun play(track: Track) {
+        // Повторное касание уже играющего трека ничего не меняет. Если он стоит на паузе
+        // (например, очередь восстановлена после перезапуска без автозапуска), просто продолжаем.
+        val snapshot = player.state.value
+        val current = snapshot.queue.getOrNull(snapshot.currentIndex)
+        if (current?.id == track.id) {
+            if (!snapshot.isPlaying) player.play()
+            return
+        }
         val tracks = uiState.value.tracks
         val index = tracks.indexOfFirst { it.id == track.id }.coerceAtLeast(0)
         player.playTracks(tracks, index)

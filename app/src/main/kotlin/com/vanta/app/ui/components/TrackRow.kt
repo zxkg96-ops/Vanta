@@ -1,8 +1,7 @@
 package com.vanta.app.ui.components
 
 import androidx.compose.foundation.LocalIndication
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.indication
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -23,14 +22,19 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.vanta.core.Track
 
-@OptIn(ExperimentalFoundationApi::class)
+/**
+ * Строка трека. [onClick] срабатывает на касании (см. [instantTap]), а не на отпускании:
+ * палец лежит [INSTANT_TAP_WINDOW_MS] без движения — трек стартует; начался скролл — не стартует.
+ * [onPressStart] вызывается сразу при касании (прогрев файла).
+ */
 @Composable
 fun TrackRow(
     track: Track,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     trailing: (@Composable () -> Unit)? = null,
-    onLongClick: (() -> Unit)? = null
+    onLongClick: (() -> Unit)? = null,
+    onPressStart: (() -> Unit)? = null
 ) {
     val source = remember { MutableInteractionSource() }
     val subtitle = remember(track.artist, track.album) {
@@ -38,11 +42,12 @@ fun TrackRow(
     }
     Row(
         modifier = modifier.fillMaxWidth().pressScale(source).clip(RoundedCornerShape(14.dp))
-            .combinedClickable(
+            .indication(source, LocalIndication.current)
+            .instantTap(
                 interactionSource = source,
-                indication = LocalIndication.current,
-                onClick = onClick,
-                onLongClick = onLongClick
+                onPressStart = onPressStart,
+                onLongClick = onLongClick,
+                onTap = onClick
             )
             .padding(horizontal = 4.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically
