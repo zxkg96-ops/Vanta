@@ -44,8 +44,8 @@ fun GlassTabBar(
         SideEffect { lastSel = selected }
 
         // Передний край бежит быстро, задний отстаёт: таблетка растягивается при переходе
-        val fast = spring<Dp>(dampingRatio = 0.88f, stiffness = 520f)
-        val slow = spring<Dp>(dampingRatio = 0.92f, stiffness = 300f)
+        val fast = spring<Dp>(dampingRatio = 0.86f, stiffness = 460f)
+        val slow = spring<Dp>(dampingRatio = 0.90f, stiffness = 340f)
         val left by animateDpAsState(tabW * selected, if (goingRight) slow else fast, label = "pillLeft")
         val right by animateDpAsState(tabW * (selected + 1), if (goingRight) fast else slow, label = "pillRight")
 

@@ -9,10 +9,10 @@ import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.graphicsLayer
 import com.vanta.app.ui.motion.VantaMotion
 
-/** Subtle press feedback: quick response, restrained scale, no distracting bounce. */
+/** Tactile press response with a small scale change and a spring return. */
 fun Modifier.pressScale(
     source: InteractionSource,
-    pressedScale: Float = 0.97f
+    pressedScale: Float = 0.975f
 ): Modifier = composed {
     val pressed by source.collectIsPressedAsState()
     val scale by animateFloatAsState(

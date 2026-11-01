@@ -23,6 +23,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures as detectHDrag
@@ -116,8 +118,8 @@ fun NowPlayingScreen(
 
 
     val artScale by animateFloatAsState(
-        targetValue = if (state.isPlaying) 1f else 0.9f,
-        animationSpec = VantaMotion.GentleSpring,
+        targetValue = if (state.isPlaying) 1f else 0.975f,
+        animationSpec = VantaMotion.ArtworkSpring,
         label = "artScale"
     )
     val activeColor = MaterialTheme.colorScheme.primary
@@ -193,8 +195,8 @@ fun NowPlayingScreen(
                 contentKey = { it?.id },
                 transitionSpec = {
                     ContentTransform(
-                        targetContentEnter = fadeIn(tween(VantaMotion.EMPHASIZED_MS, easing = VantaMotion.DecelerateEasing)) + scaleIn(tween(VantaMotion.EMPHASIZED_MS, easing = VantaMotion.DecelerateEasing), initialScale = 0.97f),
-                        initialContentExit = fadeOut(tween(VantaMotion.FAST_MS, easing = VantaMotion.StandardEasing)),
+                        targetContentEnter = fadeIn(tween(VantaMotion.EMPHASIZED_MS, easing = VantaMotion.DecelerateEasing)) + slideInHorizontally(tween(VantaMotion.EMPHASIZED_MS, easing = VantaMotion.DecelerateEasing)) { it / 14 } + scaleIn(tween(VantaMotion.EMPHASIZED_MS, easing = VantaMotion.DecelerateEasing), initialScale = 0.985f),
+                        initialContentExit = fadeOut(tween(VantaMotion.EXIT_MS, easing = VantaMotion.StandardEasing)) + slideOutHorizontally(tween(VantaMotion.EXIT_MS, easing = VantaMotion.StandardEasing)) { -it / 24 },
                         sizeTransform = SizeTransform(clip = false)
                     )
                 },
@@ -325,8 +327,8 @@ fun NowPlayingScreen(
                     AnimatedContent(
                         targetState = state.isPlaying,
                         transitionSpec = {
-                            (fadeIn(tween(180)) + scaleIn(tween(180), initialScale = 0.5f))
-                                .togetherWith(fadeOut(tween(120)) + scaleOut(tween(120), targetScale = 0.5f))
+                            (fadeIn(tween(VantaMotion.FAST_MS, easing = VantaMotion.DecelerateEasing)) + scaleIn(tween(VantaMotion.FAST_MS, easing = VantaMotion.DecelerateEasing), initialScale = 0.82f))
+                                .togetherWith(fadeOut(tween(VantaMotion.INSTANT_MS, easing = VantaMotion.StandardEasing)) + scaleOut(tween(VantaMotion.INSTANT_MS, easing = VantaMotion.StandardEasing), targetScale = 0.88f))
                         },
                         label = "playPause"
                     ) { playing ->

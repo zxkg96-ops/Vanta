@@ -5,23 +5,33 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 
-/** Shared motion tokens for consistent, low-jank UI transitions. */
+/** Shared motion tokens tuned for responsive, restrained, iOS-like motion. */
 object VantaMotion {
-    const val FAST_MS = 120
-    const val NORMAL_MS = 280
-    const val EMPHASIZED_MS = 420
+    const val INSTANT_MS = 90
+    const val FAST_MS = 180
+    const val NORMAL_MS = 300
+    const val EMPHASIZED_MS = 460
+    const val EXIT_MS = 190
 
-    val StandardEasing = CubicBezierEasing(0.2f, 0.0f, 0.0f, 1.0f)
+    // Smooth acceleration/deceleration without the abrupt stop of a linear curve.
+    val StandardEasing = CubicBezierEasing(0.22f, 0.0f, 0.0f, 1.0f)
     val DecelerateEasing = CubicBezierEasing(0.16f, 1.0f, 0.3f, 1.0f)
+    val EnterEasing = CubicBezierEasing(0.0f, 0.0f, 0.2f, 1.0f)
 
+    // High damping keeps controls precise. Lower stiffness gives larger surfaces a softer settle.
     val TouchSpring = spring<Float>(
-        dampingRatio = 0.88f,
-        stiffness = 520f
+        dampingRatio = 0.86f,
+        stiffness = 480f
     )
 
     val ContentSpring = spring<Float>(
-        dampingRatio = 0.90f,
-        stiffness = 340f
+        dampingRatio = 0.88f,
+        stiffness = 300f
+    )
+
+    val ArtworkSpring = spring<Float>(
+        dampingRatio = 0.84f,
+        stiffness = 220f
     )
 
     val GentleSpring = spring<Float>(

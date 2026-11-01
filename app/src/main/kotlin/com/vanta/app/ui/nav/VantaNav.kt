@@ -9,6 +9,8 @@ import androidx.compose.animation.core.tween
 import com.vanta.app.ui.motion.VantaMotion
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -35,15 +37,15 @@ fun VantaRoot(
             if (targetState) {
                 // Открытие плеера: выезжает снизу
                 ContentTransform(
-                    targetContentEnter = slideInVertically(tween(VantaMotion.EMPHASIZED_MS, easing = VantaMotion.DecelerateEasing)) { (it * 0.08f).toInt() } + fadeIn(tween(VantaMotion.NORMAL_MS, easing = VantaMotion.StandardEasing)),
-                    initialContentExit = fadeOut(tween(VantaMotion.NORMAL_MS, easing = VantaMotion.StandardEasing)),
+                    targetContentEnter = slideInVertically(tween(VantaMotion.EMPHASIZED_MS, easing = VantaMotion.DecelerateEasing)) { (it * 0.045f).toInt() } + scaleIn(tween(VantaMotion.EMPHASIZED_MS, easing = VantaMotion.DecelerateEasing), initialScale = 0.985f) + fadeIn(tween(VantaMotion.NORMAL_MS, easing = VantaMotion.EnterEasing)),
+                    initialContentExit = scaleOut(tween(VantaMotion.EXIT_MS, easing = VantaMotion.StandardEasing), targetScale = 0.99f) + fadeOut(tween(VantaMotion.EXIT_MS, easing = VantaMotion.StandardEasing)),
                     targetContentZIndex = 1f
                 )
             } else {
                 // Закрытие: плеер уезжает вниз, главная проявляется
                 ContentTransform(
-                    targetContentEnter = fadeIn(tween(VantaMotion.NORMAL_MS, easing = VantaMotion.StandardEasing)),
-                    initialContentExit = slideOutVertically(tween(VantaMotion.NORMAL_MS, easing = VantaMotion.StandardEasing)) { (it * 0.06f).toInt() } + fadeOut(tween(VantaMotion.NORMAL_MS, easing = VantaMotion.StandardEasing)),
+                    targetContentEnter = scaleIn(tween(VantaMotion.NORMAL_MS, easing = VantaMotion.DecelerateEasing), initialScale = 0.99f) + fadeIn(tween(VantaMotion.NORMAL_MS, easing = VantaMotion.EnterEasing)),
+                    initialContentExit = slideOutVertically(tween(VantaMotion.EXIT_MS, easing = VantaMotion.StandardEasing)) { (it * 0.035f).toInt() } + scaleOut(tween(VantaMotion.EXIT_MS, easing = VantaMotion.StandardEasing), targetScale = 0.985f) + fadeOut(tween(VantaMotion.EXIT_MS, easing = VantaMotion.StandardEasing)),
                     targetContentZIndex = -1f
                 )
             }

@@ -12,6 +12,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
@@ -84,9 +86,27 @@ fun MiniPlayer(
         Row(Modifier.padding(start = 16.dp, end = 12.dp, top = 8.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(track.title, style = MaterialTheme.typography.titleMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(track.artist ?: "Unknown artist", style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                AnimatedContent(
+                    targetState = track.title,
+                    transitionSpec = {
+                        (fadeIn(tween(220)) + slideInVertically(tween(220)) { it / 3 })
+                            .togetherWith(fadeOut(tween(140)) + slideOutVertically(tween(140)) { -it / 4 })
+                    },
+                    label = "miniTrackTitle"
+                ) { title ->
+                    Text(title, style = MaterialTheme.typography.titleMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                AnimatedContent(
+                    targetState = track.artist ?: "Unknown artist",
+                    transitionSpec = {
+                        (fadeIn(tween(240, delayMillis = 25)) + slideInVertically(tween(240, delayMillis = 25)) { it / 3 })
+                            .togetherWith(fadeOut(tween(130)) + slideOutVertically(tween(130)) { -it / 4 })
+                    },
+                    label = "miniTrackArtist"
+                ) { artist ->
+                    Text(artist, style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                }
             }
             IconButton(
                 onClick = onToggle,
@@ -95,8 +115,8 @@ fun MiniPlayer(
                 AnimatedContent(
                     targetState = state.isPlaying,
                     transitionSpec = {
-                        (fadeIn(tween(150)) + scaleIn(tween(150), initialScale = 0.6f))
-                            .togetherWith(fadeOut(tween(100)) + scaleOut(tween(100), targetScale = 0.6f))
+                        (fadeIn(tween(180)) + scaleIn(tween(180), initialScale = 0.82f))
+                            .togetherWith(fadeOut(tween(110)) + scaleOut(tween(110), targetScale = 0.88f))
                     },
                     label = "miniPlayPause"
                 ) { playing ->
