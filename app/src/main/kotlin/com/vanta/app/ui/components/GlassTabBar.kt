@@ -51,6 +51,8 @@ fun GlassTabBar(
             .padding(4.dp)
     ) {
         val count = titles.size
+        // maxWidth is only reachable from the BoxWithConstraints scope, not from the nested Box below.
+        val tabWidth = maxWidth / count
         val totalPx = constraints.maxWidth.toFloat()
         val tabPx = totalPx / count
         val maxX = totalPx - tabPx
@@ -146,7 +148,7 @@ fun GlassTabBar(
         ) {
             Box(
                 Modifier
-                    .width(maxWidth / count)
+                    .width(tabWidth)
                     .height(40.dp)
                     .graphicsLayer {
                         translationX = indicatorX.value
