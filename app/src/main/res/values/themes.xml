@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Window colour while the process starts: same as the icon background, so there is no white/black flash. -->
+    <style name="Theme.Vanta.Starting" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/vanta_launch_bg</item>
+        <item name="android:statusBarColor">@color/vanta_launch_bg</item>
+        <item name="android:navigationBarColor">@color/vanta_launch_bg</item>
+    </style>
+</resources>

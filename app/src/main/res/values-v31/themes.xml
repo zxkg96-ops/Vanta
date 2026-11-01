@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12+: system splash shows only the background colour; the icon bars are drawn by VantaSplash. -->
+    <style name="Theme.Vanta.Starting" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/vanta_launch_bg</item>
+        <item name="android:statusBarColor">@color/vanta_launch_bg</item>
+        <item name="android:navigationBarColor">@color/vanta_launch_bg</item>
+        <item name="android:windowSplashScreenBackground">@color/vanta_launch_bg</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/vanta_splash_empty</item>
+    </style>
+</resources>

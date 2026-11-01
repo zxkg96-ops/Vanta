@@ -28,7 +28,6 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures as detectHDrag
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material3.AlertDialog

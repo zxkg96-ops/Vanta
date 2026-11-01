@@ -20,7 +20,7 @@
         android:roundIcon="@mipmap/ic_launcher"
         android:label="VANTA"
         android:supportsRtl="true"
-        android:theme="@android:style/Theme.Material.NoActionBar">
+        android:theme="@style/Theme.Vanta.Starting">
 
         <activity
             android:name=".MainActivity"
