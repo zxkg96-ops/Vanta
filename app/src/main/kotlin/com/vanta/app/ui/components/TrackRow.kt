@@ -33,6 +33,9 @@ fun TrackRow(
     onLongClick: (() -> Unit)? = null
 ) {
     val source = remember { MutableInteractionSource() }
+    val subtitle = remember(track.artist, track.album) {
+        listOfNotNull(track.artist, track.album).joinToString(" • ").ifBlank { "Unknown artist" }
+    }
     Row(
         modifier = modifier.fillMaxWidth().pressScale(source).clip(RoundedCornerShape(14.dp))
             .combinedClickable(
@@ -61,7 +64,7 @@ fun TrackRow(
         Column(Modifier.weight(1f)) {
             Text(track.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(
-                listOfNotNull(track.artist, track.album).joinToString(" • ").ifBlank { "Unknown artist" },
+                subtitle,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,

@@ -72,6 +72,14 @@ fun HomeScreen(
     var newPlaylistFor by remember { mutableStateOf<Track?>(null) }
     var showNewPlaylist by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
+    // Build lookup tables once per library update, not once per playlist row composition.
+    val trackById = remember(allTracks) { allTracks.associateBy { it.id } }
+    val playlistTrackCounts = remember(playlists, trackById) {
+        playlists.associate { playlist ->
+            playlist.id to playlist.trackIds.count { it in trackById }
+        }
+    }
+    val tabTitles = remember { listOf("Треки", "Альбомы", "Артисты", "Плейлисты") }
 
     val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         Manifest.permission.READ_MEDIA_AUDIO
@@ -184,7 +192,7 @@ fun HomeScreen(
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             GlassTabBar(
-                titles = listOf("Треки", "Альбомы", "Артисты", "Плейлисты"),
+                titles = tabTitles,
                 selected = tab,
                 onSelect = { tab = it },
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -213,7 +221,11 @@ fun HomeScreen(
                             horizontalArrangement = Arrangement.spacedBy(16.dp),
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
-                            items(albums, key = { it.id }) { album ->
+                            items(
+                                items = albums,
+                                key = { it.id },
+                                contentType = { "album" }
+                            ) { album ->
                                 AlbumCard(album = album, onClick = { viewModel.playAlbum(album.id) })
                             }
                         }
@@ -225,7 +237,11 @@ fun HomeScreen(
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp)
                         ) {
-                            items(artists, key = { it.id }) { artist ->
+                            items(
+                                items = artists,
+                                key = { it.id },
+                                contentType = { "artist" }
+                            ) { artist ->
                                 SimpleRow(
                                     icon = { Icon(Icons.Default.Person, contentDescription = null) },
                                     title = artist.name,
@@ -254,12 +270,17 @@ fun HomeScreen(
                                 onClick = { viewModel.playAll(favTracks) }
                             )
                         }
-                        items(playlists, key = { it.id }) { pl ->
-                            val plTracks = pl.trackIds.mapNotNull { id -> allTracks.firstOrNull { it.id == id } }
+                        items(
+                            items = playlists,
+                            key = { it.id },
+                            contentType = { "playlist" }
+                        ) { pl ->
                             SimpleRow(
                                 title = pl.name,
-                                subtitle = "${plTracks.size} треков",
-                                onClick = { viewModel.playAll(plTracks) },
+                                subtitle = "${playlistTrackCounts[pl.id] ?: 0} треков",
+                                onClick = {
+                                    viewModel.playAll(pl.trackIds.mapNotNull(trackById::get))
+                                },
                                 trailing = {
                                     IconButton(onClick = { viewModel.deletePlaylist(pl.id) }) {
                                         Icon(Icons.Default.Delete, contentDescription = "Удалить")
@@ -428,11 +449,14 @@ private fun TracksTab(
                     modifier = Modifier.padding(bottom = 12.dp)
                 )
             }
-            items(tracks, key = { it.id }) { track ->
+            items(
+                items = tracks,
+                key = { it.id },
+                contentType = { "track" }
+            ) { track ->
                 TrackRow(
                     track = track,
                     onClick = { onPlay(track) },
-                    modifier = Modifier.animateItem(),
                     trailing = if (track.id in favorites) heart else null,
                     onLongClick = { onLongClick(track) }
                 )

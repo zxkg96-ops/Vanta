@@ -1,9 +1,8 @@
 package com.vanta.app.ui.components
 
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -14,12 +13,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.vanta.app.ui.motion.VantaMotion
 
 /** Островок с вкладками и «стеклянной» таблеткой, которая перетекает к выбранной вкладке. */
 @Composable
@@ -39,21 +37,19 @@ fun GlassTabBar(
     ) {
         val tabW = maxWidth / titles.size
 
-        var lastSel by remember { mutableIntStateOf(selected) }
-        val goingRight = selected >= lastSel
-        SideEffect { lastSel = selected }
-
-        // Передний край бежит быстро, задний отстаёт: таблетка растягивается при переходе
-        val fast = spring<Dp>(dampingRatio = 0.86f, stiffness = 460f)
-        val slow = spring<Dp>(dampingRatio = 0.90f, stiffness = 340f)
-        val left by animateDpAsState(tabW * selected, if (goingRight) slow else fast, label = "pillLeft")
-        val right by animateDpAsState(tabW * (selected + 1), if (goingRight) fast else slow, label = "pillRight")
+        // Keep the indicator's measured size constant. Only its render-layer position
+        // changes, avoiding repeated width/layout work on every animation frame.
+        val indicatorOffset by animateFloatAsState(
+            targetValue = tabW.value * selected,
+            animationSpec = spring(dampingRatio = 0.88f, stiffness = 420f),
+            label = "tabIndicatorOffset"
+        )
 
         Box(
             Modifier
-                .offset(x = left)
-                .width((right - left).coerceAtLeast(0.dp))
+                .width(tabW)
                 .height(40.dp)
+                .graphicsLayer { translationX = indicatorOffset * density }
                 .flatFill(RoundedCornerShape(24.dp), Color.White.copy(alpha = 0.16f))
         )
 

@@ -2,15 +2,16 @@ package com.vanta.app.ui.nav
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.spring
 import com.vanta.app.ui.motion.VantaMotion
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -35,19 +36,31 @@ fun VantaRoot(
         targetState = showNowPlaying,
         transitionSpec = {
             if (targetState) {
-                // Открытие плеера: выезжает снизу
-                ContentTransform(
-                    targetContentEnter = slideInVertically(tween(VantaMotion.EMPHASIZED_MS, easing = VantaMotion.DecelerateEasing)) { (it * 0.045f).toInt() } + scaleIn(tween(VantaMotion.EMPHASIZED_MS, easing = VantaMotion.DecelerateEasing), initialScale = 0.985f) + fadeIn(tween(VantaMotion.NORMAL_MS, easing = VantaMotion.EnterEasing)),
-                    initialContentExit = scaleOut(tween(VantaMotion.EXIT_MS, easing = VantaMotion.StandardEasing), targetScale = 0.99f) + fadeOut(tween(VantaMotion.EXIT_MS, easing = VantaMotion.StandardEasing)),
-                    targetContentZIndex = 1f
-                )
+                // Full player enters with a soft lift and settles like a native sheet.
+                (slideInVertically(
+                    animationSpec = spring(dampingRatio = 0.88f, stiffness = 360f)
+                ) { (it * 0.035f).toInt() } +
+                    scaleIn(
+                        animationSpec = spring(dampingRatio = 0.86f, stiffness = 320f),
+                        initialScale = 0.965f
+                    ) + fadeIn(tween(220, easing = VantaMotion.EnterEasing)))
+                    .togetherWith(
+                        scaleOut(tween(150, easing = VantaMotion.StandardEasing), targetScale = 0.985f) +
+                            fadeOut(tween(150, easing = VantaMotion.StandardEasing))
+                    )
             } else {
-                // Закрытие: плеер уезжает вниз, главная проявляется
-                ContentTransform(
-                    targetContentEnter = scaleIn(tween(VantaMotion.NORMAL_MS, easing = VantaMotion.DecelerateEasing), initialScale = 0.99f) + fadeIn(tween(VantaMotion.NORMAL_MS, easing = VantaMotion.EnterEasing)),
-                    initialContentExit = slideOutVertically(tween(VantaMotion.EXIT_MS, easing = VantaMotion.StandardEasing)) { (it * 0.035f).toInt() } + scaleOut(tween(VantaMotion.EXIT_MS, easing = VantaMotion.StandardEasing), targetScale = 0.985f) + fadeOut(tween(VantaMotion.EXIT_MS, easing = VantaMotion.StandardEasing)),
-                    targetContentZIndex = -1f
-                )
+                // Reverse transition remains short, controlled and does not snap.
+                (scaleIn(
+                    animationSpec = spring(dampingRatio = 0.9f, stiffness = 380f),
+                    initialScale = 0.985f
+                ) + fadeIn(tween(180, easing = VantaMotion.EnterEasing)))
+                    .togetherWith(
+                        slideOutVertically(
+                            animationSpec = spring(dampingRatio = 0.9f, stiffness = 420f)
+                        ) { (it * 0.025f).toInt() } +
+                            scaleOut(tween(170, easing = VantaMotion.StandardEasing), targetScale = 0.97f) +
+                            fadeOut(tween(150, easing = VantaMotion.StandardEasing))
+                    )
             }
         },
         label = "rootTransition"

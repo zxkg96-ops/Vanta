@@ -12,6 +12,7 @@ import com.vanta.app.ui.components.flatFill
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode as AnimRepeatMode
@@ -72,6 +73,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -88,6 +90,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.vanta.core.PlayerController
@@ -105,6 +108,8 @@ fun NowPlayingScreen(
     onClose: () -> Unit
 ) {
     val state by player.state.collectAsStateWithLifecycle()
+    val playButtonScale = remember { Animatable(1f) }
+    val playButtonScope = rememberCoroutineScope()
     val track = state.queue.getOrNull(state.currentIndex)
     var showQueue by remember { mutableStateOf(false) }
     var showTimer by remember { mutableStateOf(false) }
@@ -319,9 +324,27 @@ fun NowPlayingScreen(
                     Icon(Icons.Default.SkipPrevious, contentDescription = "Previous", tint = Color.White, modifier = Modifier.size(36.dp))
                 }
                 IconButton(
-                    onClick = { player.toggle() },
+                    onClick = {
+                        // Compress the complete circular control, then let it spring back.
+                        // Playback is triggered immediately so the animation never delays audio.
+                        playButtonScope.launch {
+                            playButtonScale.animateTo(
+                                targetValue = 0.925f,
+                                animationSpec = tween(65, easing = VantaMotion.StandardEasing)
+                            )
+                            playButtonScale.animateTo(
+                                targetValue = 1f,
+                                animationSpec = spring(dampingRatio = 0.58f, stiffness = 520f)
+                            )
+                        }
+                        player.toggle()
+                    },
                     modifier = Modifier
                         .size(72.dp)
+                        .graphicsLayer {
+                            scaleX = playButtonScale.value
+                            scaleY = playButtonScale.value
+                        }
                         .background(MaterialTheme.colorScheme.primary, CircleShape)
                 ) {
                     AnimatedContent(
