@@ -1,6 +1,8 @@
 package com.vanta.app.ui.components
 
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -41,7 +43,7 @@ fun GlassTabBar(
         // changes, avoiding repeated width/layout work on every animation frame.
         val indicatorOffset by animateFloatAsState(
             targetValue = tabW.value * selected,
-            animationSpec = spring(dampingRatio = 0.88f, stiffness = 420f),
+            animationSpec = spring(dampingRatio = 0.76f, stiffness = 380f),
             label = "tabIndicatorOffset"
         )
 
@@ -65,11 +67,17 @@ fun GlassTabBar(
                         ) { onSelect(i) },
                     contentAlignment = Alignment.Center
                 ) {
+                    val tint by animateColorAsState(
+                        targetValue = if (selected == i) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                        animationSpec = tween(200),
+                        label = "tabTint"
+                    )
                     Text(
                         text = title,
-                        color = if (selected == i) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = tint,
                         fontSize = 12.sp,
-                        fontWeight = if (selected == i) FontWeight.Bold else FontWeight.Normal,
+                        // Constant weight: switching Bold/Normal re-measures the text and makes the label jump.
+                        fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
                         softWrap = false
                     )

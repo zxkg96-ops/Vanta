@@ -2,6 +2,10 @@ package com.vanta.app.ui.components
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.graphics.graphicsLayer
@@ -56,26 +60,35 @@ fun MiniPlayer(
     val scope = rememberCoroutineScope()
     Surface(
         modifier = modifier.fillMaxWidth()
-            .graphicsLayer { translationY = offsetY.value }
-            .pointerInput(Unit) {
-                detectVerticalDragGestures(
-                    onDragEnd = {
-                        scope.launch {
-                            if (offsetY.value > 120f && onDismiss != null) {
-                                onDismiss()
-                                offsetY.snapTo(0f)
-                            } else {
-                                offsetY.animateTo(0f)
-                            }
-                        }
-                    },
-                    onDragCancel = { scope.launch { offsetY.animateTo(0f) } },
-                    onVerticalDrag = { change, dy ->
-                        change.consume()
-                        scope.launch { offsetY.snapTo((offsetY.value + dy).coerceAtLeast(0f)) }
-                    }
-                )
+            .graphicsLayer {
+                translationY = offsetY.value
+                alpha = (1f - offsetY.value.coerceAtLeast(0f) / 400f).coerceIn(0.4f, 1f)
             }
+            .draggable(
+                state = rememberDraggableState { dy ->
+                    scope.launch {
+                        val cur = offsetY.value
+                        // Rubber band when pulled upwards, free when pulled down to dismiss.
+                        offsetY.snapTo(cur + if (cur + dy < 0f) dy * 0.35f else dy)
+                    }
+                },
+                orientation = Orientation.Vertical,
+                onDragStopped = { v ->
+                    val y = offsetY.value
+                    when {
+                        onDismiss != null && (y > 90f || v > 1400f) -> {
+                            offsetY.animateTo(160f, tween(110))
+                            onDismiss()
+                            offsetY.snapTo(0f)
+                        }
+                        y < -36f || v < -1100f -> {
+                            onOpen()
+                            offsetY.animateTo(0f, spring(dampingRatio = 0.8f, stiffness = 400f), v)
+                        }
+                        else -> offsetY.animateTo(0f, spring(dampingRatio = 0.78f, stiffness = 380f), v)
+                    }
+                }
+            )
             .pressScale(source)
             .clip(RoundedCornerShape(18.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant)

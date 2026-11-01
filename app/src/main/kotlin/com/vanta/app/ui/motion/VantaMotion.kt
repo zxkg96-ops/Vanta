@@ -39,6 +39,23 @@ object VantaMotion {
         stiffness = 260f
     )
 
+    // Interactive sheet: open has a tiny settle, close is critically damped so it never bounces below the edge.
+    val SheetOpenSpring = spring<Float>(
+        dampingRatio = 0.9f,
+        stiffness = 330f
+    )
+
+    val SheetCloseSpring = spring<Float>(
+        dampingRatio = 1f,
+        stiffness = 420f
+    )
+
+    // Snap back after a released gesture; slightly lively, like a rubber band.
+    val ReleaseSpring = spring<Float>(
+        dampingRatio = 0.78f,
+        stiffness = 380f
+    )
+
     fun fastTween() = tween<Float>(FAST_MS, easing = StandardEasing)
     fun normalTween() = tween<Float>(NORMAL_MS, easing = StandardEasing)
     fun emphasizedTween() = tween<Float>(EMPHASIZED_MS, easing = DecelerateEasing)

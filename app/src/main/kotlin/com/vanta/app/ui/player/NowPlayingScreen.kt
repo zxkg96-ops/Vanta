@@ -70,6 +70,16 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.animation.core.AnimationSpec
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import com.vanta.app.ui.components.PressIconButton
+import kotlinx.coroutines.delay
+import kotlin.math.abs
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.rememberUpdatedState
@@ -120,6 +130,23 @@ fun NowPlayingScreen(
     )
     val artColor = artColors.dark
     val accent = artColors.accent
+
+    // Finger-driven track swipe: the card follows the finger, then flies out and the next one settles in.
+    val trackSwipeX = remember { Animatable(0f) }
+    val trackScope = rememberCoroutineScope()
+    var trackWidthPx by remember { mutableFloatStateOf(1f) }
+    var swipeEnterFrom by remember { mutableFloatStateOf(0f) }
+    var lastTrackId by remember { mutableStateOf(track?.id) }
+    val currentTrackId by rememberUpdatedState(track?.id)
+    LaunchedEffect(track?.id) {
+        if (lastTrackId != track?.id) {
+            lastTrackId = track?.id
+            val from = if (swipeEnterFrom != 0f) swipeEnterFrom else trackWidthPx * 0.10f
+            swipeEnterFrom = 0f
+            trackSwipeX.snapTo(from)
+            trackSwipeX.animateTo(0f, spring(dampingRatio = 0.9f, stiffness = 320f))
+        }
+    }
 
 
     val artScale by animateFloatAsState(
@@ -182,31 +209,45 @@ fun NowPlayingScreen(
         ) {
             Spacer(Modifier.height(12.dp))
 
-            AnimatedContent(
-                targetState = track,
-                modifier = Modifier.pointerInput(Unit) {
-                    var dx = 0f
-                    detectHDrag(
-                        onDragStart = { dx = 0f },
-                        onDragEnd = {
-                            if (dx > 140f) player.prev() else if (dx < -140f) player.next()
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .onSizeChanged { trackWidthPx = it.width.toFloat().coerceAtLeast(1f) }
+                    .draggable(
+                        orientation = Orientation.Horizontal,
+                        state = rememberDraggableState { d ->
+                            trackScope.launch { trackSwipeX.snapTo(trackSwipeX.value + d) }
                         },
-                        onHorizontalDrag = { change, delta ->
-                            change.consume()
-                            dx += delta
+                        onDragStopped = { velocity ->
+                            val w = trackWidthPx
+                            val projected = trackSwipeX.value + velocity * 0.12f
+                            if (abs(projected) > w * 0.28f) {
+                                val goNext = projected < 0f
+                                val idBefore = currentTrackId
+                                swipeEnterFrom = if (goNext) w * 0.35f else -w * 0.35f
+                                trackSwipeX.animateTo(
+                                    targetValue = if (goNext) -w else w,
+                                    animationSpec = tween(150, easing = VantaMotion.StandardEasing)
+                                )
+                                if (goNext) player.next() else player.prev()
+                                delay(350)
+                                // Nothing changed (end of queue, restart): bring the card back.
+                                if (currentTrackId == idBefore) {
+                                    swipeEnterFrom = 0f
+                                    trackSwipeX.animateTo(0f, VantaMotion.ReleaseSpring)
+                                }
+                            } else {
+                                trackSwipeX.animateTo(0f, VantaMotion.ReleaseSpring, velocity)
+                            }
                         }
                     )
-                },
-                contentKey = { it?.id },
-                transitionSpec = {
-                    ContentTransform(
-                        targetContentEnter = fadeIn(tween(VantaMotion.EMPHASIZED_MS, easing = VantaMotion.DecelerateEasing)) + slideInHorizontally(tween(VantaMotion.EMPHASIZED_MS, easing = VantaMotion.DecelerateEasing)) { it / 14 } + scaleIn(tween(VantaMotion.EMPHASIZED_MS, easing = VantaMotion.DecelerateEasing), initialScale = 0.985f),
-                        initialContentExit = fadeOut(tween(VantaMotion.EXIT_MS, easing = VantaMotion.StandardEasing)) + slideOutHorizontally(tween(VantaMotion.EXIT_MS, easing = VantaMotion.StandardEasing)) { -it / 24 },
-                        sizeTransform = SizeTransform(clip = false)
-                    )
-                },
-                label = "trackChange"
-            ) { t ->
+                    .graphicsLayer {
+                        translationX = trackSwipeX.value
+                        val f = (abs(trackSwipeX.value) / trackWidthPx).coerceIn(0f, 1f)
+                        alpha = 1f - 0.65f * f
+                    }
+            ) {
+                val t = track
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
@@ -313,14 +354,14 @@ fun NowPlayingScreen(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = { player.setShuffle(!state.shuffle) }) {
+                PressIconButton(onClick = { player.setShuffle(!state.shuffle) }) {
                     Icon(
                         Icons.Default.Shuffle,
                         contentDescription = "Shuffle",
                         tint = shuffleTint
                     )
                 }
-                IconButton(onClick = { player.prev() }, modifier = Modifier.size(56.dp)) {
+                PressIconButton(onClick = { swipeEnterFrom = -trackWidthPx * 0.10f; player.prev() }, modifier = Modifier.size(56.dp)) {
                     Icon(Icons.Default.SkipPrevious, contentDescription = "Previous", tint = Color.White, modifier = Modifier.size(36.dp))
                 }
                 IconButton(
@@ -363,10 +404,10 @@ fun NowPlayingScreen(
                         )
                     }
                 }
-                IconButton(onClick = { player.next() }, modifier = Modifier.size(56.dp)) {
+                PressIconButton(onClick = { swipeEnterFrom = trackWidthPx * 0.10f; player.next() }, modifier = Modifier.size(56.dp)) {
                     Icon(Icons.Default.SkipNext, contentDescription = "Next", tint = Color.White, modifier = Modifier.size(36.dp))
                 }
-                IconButton(onClick = {
+                PressIconButton(onClick = {
                     val next = when (state.repeat) {
                         RepeatMode.OFF -> RepeatMode.ALL
                         RepeatMode.ALL -> RepeatMode.ONE
@@ -425,7 +466,7 @@ private fun formatMs(ms: Long): String {
 }
 
 
-/** Тонкая цельная дорожка без ползунка: тап и перетаскивание. */
+/** Тонкая дорожка: при касании утолщается (как в Apple Music), прогресс едет плавно. */
 @Composable
 private fun SeekBar(
     progress: Float,
@@ -434,27 +475,59 @@ private fun SeekBar(
     modifier: Modifier = Modifier
 ) {
     var widthPx by remember { mutableFloatStateOf(1f) }
+    var pressed by remember { mutableStateOf(false) }
+    var dragging by remember { mutableStateOf(false) }
+    val active = pressed || dragging
     val currentOnDrag by rememberUpdatedState(onDrag)
     val currentOnSeek by rememberUpdatedState(onSeek)
+
+    val trackHeight by animateDpAsState(
+        targetValue = if (active) 10.dp else 4.dp,
+        animationSpec = spring(dampingRatio = 0.8f, stiffness = 500f),
+        label = "seekHeight"
+    )
+    val progressSpec: AnimationSpec<Float> =
+        if (dragging) snap() else tween(450, easing = LinearEasing)
+    val shown by animateFloatAsState(
+        targetValue = progress.coerceIn(0f, 1f),
+        animationSpec = progressSpec,
+        label = "seekProgress"
+    )
+    val fillColor = MaterialTheme.colorScheme.primary
+    val trackColor = MaterialTheme.colorScheme.surfaceVariant
 
     Box(
         modifier = modifier
             .height(28.dp)
             .onSizeChanged { widthPx = it.width.toFloat().coerceAtLeast(1f) }
             .pointerInput(Unit) {
-                detectTapGestures { offset ->
-                    currentOnSeek((offset.x / widthPx).coerceIn(0f, 1f))
-                }
+                detectTapGestures(
+                    onPress = {
+                        pressed = true
+                        tryAwaitRelease()
+                        pressed = false
+                    },
+                    onTap = { offset ->
+                        currentOnSeek((offset.x / widthPx).coerceIn(0f, 1f))
+                    }
+                )
             }
             .pointerInput(Unit) {
                 var last = 0f
                 detectHorizontalDragGestures(
                     onDragStart = { offset ->
+                        dragging = true
                         last = (offset.x / widthPx).coerceIn(0f, 1f)
                         currentOnDrag(last)
                     },
-                    onDragEnd = { currentOnSeek(last) },
-                    onDragCancel = { currentOnSeek(last) },
+                    onDragEnd = {
+                        dragging = false
+                        currentOnSeek(last)
+                    },
+                    onDragCancel = {
+                        dragging = false
+                        currentOnSeek(last)
+                    },
                     onHorizontalDrag = { change, _ ->
                         change.consume()
                         last = (change.position.x / widthPx).coerceIn(0f, 1f)
@@ -467,17 +540,13 @@ private fun SeekBar(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(4.dp)
-                .clip(RoundedCornerShape(2.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(progress.coerceIn(0f, 1f))
-                    .fillMaxHeight()
-                    .background(MaterialTheme.colorScheme.primary)
-            )
-        }
+                .height(trackHeight)
+                .clip(RoundedCornerShape(50))
+                .background(trackColor)
+                .drawBehind {
+                    drawRect(fillColor, size = Size(size.width * shown, size.height))
+                }
+        )
     }
 }
 

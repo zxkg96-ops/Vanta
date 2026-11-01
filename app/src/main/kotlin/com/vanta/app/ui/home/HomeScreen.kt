@@ -5,7 +5,17 @@ import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import com.vanta.app.ui.motion.VantaMotion
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -176,8 +186,10 @@ fun HomeScreen(
         bottomBar = {
             AnimatedVisibility(
                 visible = state.player.queue.getOrNull(state.player.currentIndex) != null,
-                enter = slideInVertically { it } + fadeIn(),
-                exit = slideOutVertically { it } + fadeOut()
+                enter = slideInVertically(spring(dampingRatio = 0.85f, stiffness = 400f)) { it } +
+                    fadeIn(tween(180, easing = VantaMotion.EnterEasing)),
+                exit = slideOutVertically(spring(dampingRatio = 1f, stiffness = 500f)) { it } +
+                    fadeOut(tween(140, easing = VantaMotion.StandardEasing))
             ) {
                 MiniPlayer(
                     state = state.player,
@@ -198,8 +210,40 @@ fun HomeScreen(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
             )
 
-            Box(Modifier.weight(1f).fillMaxWidth()) {
-                when (tab) {
+            var swipeAcc by remember { mutableFloatStateOf(0f) }
+            Box(
+                Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .draggable(
+                        orientation = Orientation.Horizontal,
+                        state = rememberDraggableState { swipeAcc += it },
+                        onDragStarted = { swipeAcc = 0f },
+                        onDragStopped = { v ->
+                            if (swipeAcc < -120f || v < -900f) {
+                                if (tab < tabTitles.lastIndex) tab += 1
+                            } else if (swipeAcc > 120f || v > 900f) {
+                                if (tab > 0) tab -= 1
+                            }
+                            swipeAcc = 0f
+                        }
+                    )
+            ) {
+                AnimatedContent(
+                    targetState = tab,
+                    transitionSpec = {
+                        val dir = if (targetState > initialState) 1 else -1
+                        ContentTransform(
+                            targetContentEnter = slideInHorizontally(spring(dampingRatio = 0.9f, stiffness = 380f)) { (it * 0.18f).toInt() * dir } +
+                                fadeIn(tween(220, easing = VantaMotion.EnterEasing)),
+                            initialContentExit = slideOutHorizontally(tween(220, easing = VantaMotion.StandardEasing)) { -(it * 0.10f).toInt() * dir } +
+                                fadeOut(tween(140, easing = VantaMotion.StandardEasing)),
+                            sizeTransform = null
+                        )
+                    },
+                    label = "tabContent"
+                ) { currentTab ->
+                when (currentTab) {
                     0 -> TracksTab(
                         tracks = state.tracks,
                         favorites = favorites,
@@ -226,7 +270,7 @@ fun HomeScreen(
                                 key = { it.id },
                                 contentType = { "album" }
                             ) { album ->
-                                AlbumCard(album = album, onClick = { viewModel.playAlbum(album.id) })
+                                AlbumCard(album = album, onClick = { viewModel.playAlbum(album.id) }, modifier = Modifier.animateItem())
                             }
                         }
                     }
@@ -298,6 +342,7 @@ fun HomeScreen(
                             ) { Text("Новый плейлист") }
                         }
                     }
+                }
                 }
             }
         }
@@ -455,6 +500,7 @@ private fun TracksTab(
                 contentType = { "track" }
             ) { track ->
                 TrackRow(
+                    modifier = Modifier.animateItem(),
                     track = track,
                     onClick = { onPlay(track) },
                     trailing = if (track.id in favorites) heart else null,
